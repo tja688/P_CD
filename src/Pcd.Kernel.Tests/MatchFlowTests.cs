@@ -228,12 +228,12 @@ namespace Pcd.Kernel.Tests
             return new ContentCatalog(
                 new[]
                 {
-                    new CardDefinition(unitId, "单位", false, 2, 0, "", Array.Empty<AbilityDefinition>(), ""),
-                    new CardDefinition(intentId, "意图", false, 2, 0, "", Array.Empty<AbilityDefinition>(), "")
+                    new CardDefinition(unitId, "单位", false, 2, 0, "", Array.Empty<AbilityDefinition>(), "", ""),
+                    new CardDefinition(intentId, "意图", false, 2, 0, "", Array.Empty<AbilityDefinition>(), "", "")
                 },
                 new[]
                 {
-                    new MonsterDefinition(monsterId, "怪物", Array.Empty<StartingPlacement>(), new[] { intentId }, Array.Empty<string>())
+                    new MonsterDefinition(monsterId, "怪物", Array.Empty<StartingPlacement>(), new[] { intentId }, Array.Empty<string>(), new Personality(), IntentModes.OnTurn, "public")
                 },
                 Array.Empty<AbilityDefinition>(),
                 Array.Empty<StatusDefinition>(),

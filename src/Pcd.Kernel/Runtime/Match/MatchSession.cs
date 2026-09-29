@@ -202,12 +202,25 @@ namespace Pcd.Kernel
 
         public MatchView View(string audience)
         {
-            if (audience != "public" && audience != "player" && audience != "omniscient")
+            return _rules.BuildView(audience);
+        }
+
+        internal MatchSession Resample(string level, ulong seed)
+        {
+            MatchState state = _state.Clone();
+            HiddenSampler.Apply(state, level, seed);
+            var copy = new MatchSession(_catalog, state);
+            if (copy._state.Waiting)
             {
-                throw new ArgumentException("未知的信息等级：" + audience);
+                copy._rules.RebuildPending();
             }
 
-            return _rules.BuildView(audience);
+            return copy;
+        }
+
+        public bool HasSetup
+        {
+            get { return _state.HasSetup; }
         }
 
         public string EventHash()

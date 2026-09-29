@@ -24,7 +24,8 @@ namespace Pcd.Kernel
             int load,
             string rarity,
             AbilityDefinition[] abilities,
-            string textOverride)
+            string textOverride,
+            string school)
         {
             Id = id;
             Name = name;
@@ -34,6 +35,7 @@ namespace Pcd.Kernel
             Rarity = rarity;
             Abilities = abilities;
             TextOverride = textOverride;
+            School = school ?? "";
         }
 
         public string Id { get; }
@@ -42,6 +44,7 @@ namespace Pcd.Kernel
         public int Points { get; }
         public int Load { get; }
         public string Rarity { get; }
+        public string School { get; }
         public AbilityDefinition[] Abilities { get; }
         public string TextOverride { get; }
     }
@@ -62,13 +65,24 @@ namespace Pcd.Kernel
 
     public sealed class MonsterDefinition
     {
-        public MonsterDefinition(string id, string name, StartingPlacement[] starting, string[] intents, string[] skills)
+        public MonsterDefinition(
+            string id,
+            string name,
+            StartingPlacement[] starting,
+            string[] intents,
+            string[] skills,
+            Personality personality,
+            string intentMode,
+            string information)
         {
             Id = id;
             Name = name;
             Starting = starting;
             Intents = intents;
             Skills = skills;
+            Personality = personality;
+            IntentMode = intentMode;
+            Information = information;
         }
 
         public string Id { get; }
@@ -76,6 +90,9 @@ namespace Pcd.Kernel
         public StartingPlacement[] Starting { get; }
         public string[] Intents { get; }
         public string[] Skills { get; }
+        public Personality Personality { get; }
+        public string IntentMode { get; }
+        public string Information { get; }
     }
 
     public sealed partial class ContentCatalog
@@ -243,6 +260,11 @@ namespace Pcd.Kernel
                     throw new ContentException("内容 " + card.Id + "：稀有度必须是 white、blue 或 gold。");
                 }
 
+                if (!IsSchool(card.School))
+                {
+                    throw new ContentException("内容 " + card.Id + "：体系必须是 science、mystery、religion 或 neutral。");
+                }
+
                 _cards.Add(card.Id, card);
                 _names[card.Id] = card.Name;
                 cardList.Add(card);
@@ -328,6 +350,21 @@ namespace Pcd.Kernel
                 ValidateAbilities(cards[i].Id, cards[i].Abilities);
             }
 
+            for (int i = 0; i < backs.Length; i++)
+            {
+                if (backs[i].Cap < 0)
+                {
+                    throw new ContentException("内容 " + backs[i].Id + "：卡背数量上限不能为负。");
+                }
+
+                if (backs[i].Points < 0)
+                {
+                    throw new ContentException("内容 " + backs[i].Id + "：卡背点数不能为负。");
+                }
+
+                ValidateAbilities(backs[i].Id, backs[i].Abilities);
+            }
+
             ValidateSharedAbilities();
 
             Cards = cardList.ToArray();
@@ -340,7 +377,7 @@ namespace Pcd.Kernel
             Backs = (BackDefinition[])backs.Clone();
             DefaultDeck = (string[])defaultDeck.Clone();
             DefaultMonster = defaultMonster;
-            MayAsk = abilities.Length > 0 || AnyCardHasAbility(cards);
+            MayAsk = abilities.Length > 0 || AnyCardHasAbility(cards) || AnyBackHasAbility(backs);
             Hash = ComputeHash();
         }
 
@@ -572,6 +609,8 @@ namespace Pcd.Kernel
                 builder.Append(card.Load.ToString(CultureInfo.InvariantCulture));
                 builder.Append(' ');
                 builder.Append(card.Rarity);
+                builder.Append(' ');
+                builder.Append(card.School);
                 builder.Append('\n');
                 AppendAbilities(builder, card.Id, card.Abilities);
             }
@@ -622,6 +661,33 @@ namespace Pcd.Kernel
                     builder.Append(monster.Skills[n]);
                     builder.Append('\n');
                 }
+
+                Personality mind = monster.Personality;
+                builder.Append("mind ");
+                builder.Append(monster.Id);
+                builder.Append(' ');
+                builder.Append(monster.Information);
+                builder.Append(' ');
+                builder.Append(monster.IntentMode);
+                builder.Append(' ');
+                builder.Append(mind.Points.ToString(CultureInfo.InvariantCulture));
+                builder.Append(' ');
+                builder.Append(mind.Occupancy.ToString(CultureInfo.InvariantCulture));
+                builder.Append(' ');
+                builder.Append(mind.CoverRisk.ToString(CultureInfo.InvariantCulture));
+                builder.Append(' ');
+                builder.Append(mind.FullBoard.ToString(CultureInfo.InvariantCulture));
+                builder.Append(' ');
+                builder.Append(mind.Resource.ToString(CultureInfo.InvariantCulture));
+                builder.Append(' ');
+                builder.Append(mind.Intent.ToString(CultureInfo.InvariantCulture));
+                builder.Append(' ');
+                builder.Append(mind.Depth.ToString(CultureInfo.InvariantCulture));
+                builder.Append(' ');
+                builder.Append(mind.Samples.ToString(CultureInfo.InvariantCulture));
+                builder.Append(' ');
+                builder.Append(mind.NodeBudget.ToString(CultureInfo.InvariantCulture));
+                builder.Append('\n');
             }
 
             var abilityIds = new List<string>();
@@ -675,7 +741,8 @@ namespace Pcd.Kernel
             string rarity = node.Str("rarity") ?? "";
             string text = node.Str("text") ?? "";
             AbilityDefinition[] abilities = ReadAbilityList(node.Get("abilities"), id).ToArray();
-            return new CardDefinition(id, name, spell, points, load, rarity, abilities, text);
+            string school = node.Str("school") ?? "";
+            return new CardDefinition(id, name, spell, points, load, rarity, abilities, text, school);
         }
 
         private static MonsterDefinition ReadMonster(YamlNode node)
@@ -745,7 +812,46 @@ namespace Pcd.Kernel
                 skills = ReadIdList(skillsNode, id);
             }
 
-            return new MonsterDefinition(id, name, starting.ToArray(), intents, skills);
+            Personality personality = ReadPersonality(node.Get("personality"));
+            string intentMode = IntentModes.Stored(node.Str("intentMode"));
+            string information = InformationLevels.Normalize(node.Str("information") ?? "");
+            personality.Information = information;
+            return new MonsterDefinition(id, name, starting.ToArray(), intents, skills, personality, intentMode, information);
+        }
+
+        private static Personality ReadPersonality(YamlNode? node)
+        {
+            var personality = new Personality();
+            if (node == null)
+            {
+                return personality;
+            }
+
+            if (!node.IsMap)
+            {
+                throw new ContentException("personality 必须是映射。");
+            }
+
+            personality.Points = ReadWeight(node, "points", personality.Points);
+            personality.Occupancy = ReadWeight(node, "occupancy", personality.Occupancy);
+            personality.CoverRisk = ReadWeight(node, "coverRisk", personality.CoverRisk);
+            personality.FullBoard = ReadWeight(node, "fullBoard", personality.FullBoard);
+            personality.Resource = ReadWeight(node, "resource", personality.Resource);
+            personality.Intent = ReadWeight(node, "intent", personality.Intent);
+            personality.Depth = ReadWeight(node, "depth", personality.Depth);
+            personality.Samples = ReadWeight(node, "samples", personality.Samples);
+            personality.NodeBudget = ReadWeight(node, "nodes", personality.NodeBudget);
+            return personality;
+        }
+
+        private static int ReadWeight(YamlNode node, string key, int fallback)
+        {
+            if (!node.Has(key))
+            {
+                return fallback;
+            }
+
+            return node.Int(key);
         }
 
         private static string[] ReadIdList(YamlNode node, string owner)

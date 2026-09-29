@@ -11,9 +11,15 @@ namespace Pcd.Sim
             "用法：\n" +
             "  pcd-sim version\n" +
             "  pcd-sim play [--seed N] [--auto] [--max N] [--replay-out FILE]\n" +
-            "  pcd-sim batch --games N [--seed N] [--max N]\n" +
+            "  pcd-sim batch --games N [--seed N] [--max N] [--matrix]\n" +
             "  pcd-sim replay --file FILE [--snapshot-at N --snapshot-out FILE]\n" +
-            "  pcd-sim explain [card-id]\n";
+            "  pcd-sim scenario --file FILE [--auto] [--max N]\n" +
+            "  pcd-sim explain [card-id]\n" +
+            "  pcd-sim explain --file FILE\n" +
+            "  pcd-sim quote\n" +
+            "  pcd-sim tables\n" +
+            "  pcd-sim golden record --dir DIR [--seed N] [--max N]\n" +
+            "  pcd-sim golden diff --dir DIR\n";
 
         public static int Main(string[] args)
         {
@@ -41,6 +47,21 @@ namespace Pcd.Sim
                 return MatchCommands.Explain(args, stdout, stderr);
             }
 
+            if (command == "quote")
+            {
+                return MatchCommands.Quote(stdout, stderr);
+            }
+
+            if (command == "tables")
+            {
+                return MatchCommands.Tables(stdout, stderr);
+            }
+
+            if (command == "golden")
+            {
+                return MatchCommands.Golden(args, stdout, stderr);
+            }
+
             var options = new SimOptions();
             if (!options.Parse(args, stderr))
             {
@@ -58,6 +79,8 @@ namespace Pcd.Sim
                         return MatchCommands.Batch(options, stdout, stderr);
                     case "replay":
                         return MatchCommands.Replay(options, stdout, stderr);
+                    case "scenario":
+                        return MatchCommands.Scenario(options, stdout, stderr, stdin);
                     default:
                         stderr.Write(Usage);
                         return 1;
@@ -78,8 +101,10 @@ namespace Pcd.Sim
         public int Games;
         public int Max = 400;
         public bool Auto;
+        public bool Matrix;
         public string? ReplayOut;
         public string? File;
+        public string? Dir;
         public int SnapshotAt = -1;
         public string? SnapshotOut;
 
@@ -92,6 +117,9 @@ namespace Pcd.Sim
                 {
                     case "--auto":
                         Auto = true;
+                        break;
+                    case "--matrix":
+                        Matrix = true;
                         break;
                     case "--seed":
                         if (!TryULong(args, ref i, out Seed))
@@ -129,6 +157,14 @@ namespace Pcd.Sim
                         if (!TryText(args, ref i, out File))
                         {
                             stderr.Write("缺少 --file 的路径。\n");
+                            return false;
+                        }
+
+                        break;
+                    case "--dir":
+                        if (!TryText(args, ref i, out Dir))
+                        {
+                            stderr.Write("缺少 --dir 的路径。\n");
                             return false;
                         }
 

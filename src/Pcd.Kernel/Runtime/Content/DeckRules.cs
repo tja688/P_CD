@@ -76,6 +76,43 @@ namespace Pcd.Kernel
                 issues.Add("牌组总负荷是 " + load + "，不能超过 90。");
             }
 
+            if (backs != null)
+            {
+                var backCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+                var backOrder = new List<string>();
+                for (int i = 0; i < backs.Length; i++)
+                {
+                    if (backs[i].Length == 0)
+                    {
+                        continue;
+                    }
+
+                    if (!backCounts.ContainsKey(backs[i]))
+                    {
+                        backCounts[backs[i]] = 0;
+                        backOrder.Add(backs[i]);
+                    }
+
+                    backCounts[backs[i]] = backCounts[backs[i]] + 1;
+                }
+
+                backOrder.Sort(StringComparer.Ordinal);
+                for (int i = 0; i < backOrder.Count; i++)
+                {
+                    string id = backOrder[i];
+                    BackDefinition? back = catalog.FindBack(id);
+                    if (back == null)
+                    {
+                        continue;
+                    }
+
+                    if (back.Cap > 0 && backCounts[id] > back.Cap)
+                    {
+                        issues.Add("内容 " + id + "：同一种卡背最多 " + back.Cap + " 个，当前是 " + backCounts[id] + "。");
+                    }
+                }
+            }
+
             order.Sort(StringComparer.Ordinal);
             for (int i = 0; i < order.Count; i++)
             {
@@ -95,6 +132,65 @@ namespace Pcd.Kernel
             }
 
             return issues.ToArray();
+        }
+
+        public static int WholeLoad(ContentCatalog catalog, string cardId, string? backId)
+        {
+            if (catalog == null)
+            {
+                throw new ArgumentNullException(nameof(catalog));
+            }
+
+            int load = catalog.RequireCard(cardId).Load;
+            if (backId != null && backId.Length > 0)
+            {
+                BackDefinition? back = catalog.FindBack(backId);
+                if (back != null)
+                {
+                    load += back.Load;
+                }
+            }
+
+            return load;
+        }
+
+        public static int TotalLoad(ContentCatalog catalog, string[] cards, string[]? backs)
+        {
+            if (catalog == null)
+            {
+                throw new ArgumentNullException(nameof(catalog));
+            }
+
+            if (cards == null)
+            {
+                throw new ArgumentNullException(nameof(cards));
+            }
+
+            int load = 0;
+            for (int i = 0; i < cards.Length; i++)
+            {
+                CardDefinition card;
+                try
+                {
+                    card = catalog.RequireCard(cards[i]);
+                }
+                catch (ContentException)
+                {
+                    continue;
+                }
+
+                load += card.Load;
+                if (backs != null && i < backs.Length && backs[i].Length > 0)
+                {
+                    BackDefinition? back = catalog.FindBack(backs[i]);
+                    if (back != null)
+                    {
+                        load += back.Load;
+                    }
+                }
+            }
+
+            return load;
         }
 
         public static int CopyCap(string rarity)

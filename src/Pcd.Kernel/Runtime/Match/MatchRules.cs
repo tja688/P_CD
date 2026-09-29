@@ -176,7 +176,12 @@ namespace Pcd.Kernel
 
         public MatchView BuildView(string audience)
         {
-            bool showHand = audience == "omniscient" || audience == "player";
+            if (audience != "public" && audience != "player" && audience != "hand" && audience != "omniscient")
+            {
+                throw new ArgumentException("未知的信息等级：" + audience);
+            }
+
+            bool showHand = audience == "omniscient" || audience == "player" || audience == "hand";
             bool showDeck = audience == "omniscient";
             bool census = audience == "omniscient";
             var view = new MatchView
@@ -187,6 +192,10 @@ namespace Pcd.Kernel
                 RemainingOpportunities = _state.RemainingOpportunities,
                 RevealedIntent = _state.RevealedIntent,
                 IntentIndex = _state.IntentCursor,
+                IntentMode = _state.IntentMode,
+                CommittedCell = _state.CommittedCell,
+                CommittedTarget = _state.CommittedTarget,
+                Intents = _state.Intents.ToArray(),
                 PlayerPoints = Total(Side.Player),
                 MonsterPoints = Total(Side.Monster),
                 PlayerOccupancy = Occupancy(Side.Player),
@@ -213,6 +222,7 @@ namespace Pcd.Kernel
 
             view.Hand = showHand ? ToViews(_state.Player.Hand) : Array.Empty<ViewCard>();
             view.MatchDeck = showDeck ? ToViews(_state.Player.MatchDeck) : Array.Empty<ViewCard>();
+            view.Unseen = UnseenIds(showHand);
             view.PlayerDiscard = ToViews(_state.Player.Discard);
             view.MonsterDiscard = ToViews(_state.Monster.Discard);
             view.PlayerVoid = ToViews(_state.Player.Void);
@@ -240,6 +250,26 @@ namespace Pcd.Kernel
             }
 
             return view;
+        }
+
+        private string[] UnseenIds(bool handIsVisible)
+        {
+            var ids = new List<string>();
+            if (!handIsVisible)
+            {
+                for (int i = 0; i < _state.Player.Hand.Count; i++)
+                {
+                    ids.Add(_state.Player.Hand[i].CardId);
+                }
+            }
+
+            for (int i = 0; i < _state.Player.MatchDeck.Count; i++)
+            {
+                ids.Add(_state.Player.MatchDeck[i].CardId);
+            }
+
+            ids.Sort(StringComparer.Ordinal);
+            return ids.ToArray();
         }
 
         private void LevelStart()
@@ -517,6 +547,26 @@ namespace Pcd.Kernel
             }
 
             bool ally = occupier.Owner == card.Owner;
+            if (ally && Absorbs(card))
+            {
+                int gained = Points.Current(occupier);
+                RemoveFromBoard(occupier, "effect");
+                if (_state.Board[cell - 1] != null)
+                {
+                    GiveHand(card, "absorb");
+                    return;
+                }
+
+                if (gained != 0)
+                {
+                    AddModifier(card, "absorb", gained);
+                }
+
+                Enter(card, cell, "play");
+                FinishPlay(card, cell);
+                return;
+            }
+
             if (ally && !IsCoverAlly(card))
             {
                 throw new InvalidOperationException("不能覆盖己方卡牌。");

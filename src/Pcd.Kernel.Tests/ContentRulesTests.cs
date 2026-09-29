@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using NUnit.Framework;
 using Pcd.Kernel;
 
@@ -28,6 +30,78 @@ namespace Pcd.Kernel.Tests
             string[] issues = DeckRules.Validate(catalog, tooMany, null);
 
             Assert.That(string.Join("\n", issues), Does.Contain("card.c001"));
+        }
+
+        [Test]
+        public void Backs_add_their_load_and_stop_at_the_copy_cap()
+        {
+            const string yaml = @"
+cards:
+  - { id: card.a01, points: 1, load: 4, rarity: white }
+  - { id: card.a02, points: 1, load: 4, rarity: white }
+  - { id: card.a03, points: 1, load: 4, rarity: white }
+  - { id: card.a04, points: 1, load: 4, rarity: white }
+  - { id: card.a05, points: 1, load: 4, rarity: white }
+backs:
+  - { id: back.a01, name: 厚, load: 2, cap: 5 }
+  - { id: back.a02, name: 薄, load: 1 }
+";
+            ContentCatalog catalog = ContentCatalog.Parse(yaml);
+            var cards = new string[15];
+            for (int i = 0; i < 15; i++)
+            {
+                cards[i] = "card.a0" + ((i % 5) + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            var crowded = new string[15];
+            for (int i = 0; i < 6; i++)
+            {
+                crowded[i] = "back.a01";
+            }
+
+            for (int i = 6; i < 15; i++)
+            {
+                crowded[i] = "";
+            }
+
+            Assert.That(DeckRules.WholeLoad(catalog, "card.a01", "back.a01"), Is.EqualTo(6));
+            Assert.That(DeckRules.WholeLoad(catalog, "card.a01", "back.a02"), Is.EqualTo(5));
+            Assert.That(DeckRules.TotalLoad(catalog, cards, crowded), Is.EqualTo(72));
+            Assert.That(string.Join("\n", DeckRules.Validate(catalog, cards, crowded)), Does.Contain("back.a01"));
+
+            var thin = new string[15];
+            for (int i = 0; i < 15; i++)
+            {
+                thin[i] = "back.a02";
+            }
+
+            Assert.That(DeckRules.Validate(catalog, cards, thin), Is.Empty);
+            Assert.That(DeckRules.TotalLoad(catalog, cards, thin), Is.EqualTo(75));
+        }
+
+        [Test]
+        public void Quote_report_lists_the_known_load_and_rarity_gaps()
+        {
+            string report = LoadQuote.Report(ContentCatalog.LoadRules());
+            int sampleAt = report.IndexOf("## 试报价与卡表不一致", StringComparison.Ordinal);
+            int rarityAt = report.IndexOf("## 稀有度不一致", StringComparison.Ordinal);
+            int formulaAt = report.IndexOf("## 公式报价与卡表不一致", StringComparison.Ordinal);
+            string sample = report.Substring(sampleAt, rarityAt - sampleAt);
+            string rarity = report.Substring(rarityAt, formulaAt - rarityAt);
+            string formula = report.Substring(formulaAt);
+
+            Assert.That(sample, Does.Contain("攻击炮台"));
+            Assert.That(sample, Does.Contain("祭坛"));
+            Assert.That(sample, Does.Contain("分影"));
+            Assert.That(sample, Does.Contain("审判官"));
+            Assert.That(sample, Does.Contain("忏悔者"));
+            Assert.That(sample, Does.Contain("神的雕像"));
+            Assert.That(sample, Does.Contain("霸占者"));
+            Assert.That(sample, Does.Not.Contain("弱点攻击器"));
+            Assert.That(rarity, Does.Contain("弱点攻击器"));
+            Assert.That(rarity, Does.Contain("蓝"));
+            Assert.That(formula, Does.Contain("攻击炮台"));
+            Assert.That(formula, Does.Not.Contain("巨型机械"));
         }
 
         [Test]
@@ -99,6 +173,48 @@ monster:
 
             Assert.That(error!.Message, Does.Contain("card.a01"));
             Assert.That(error.Message, Does.Contain("ability.missing"));
+        }
+
+        [Test]
+        public void Generated_tables_match_the_design_docs()
+        {
+            ContentCatalog catalog = ContentCatalog.LoadRules();
+            string root = RepoRoot();
+            string player = File.ReadAllText(Path.Combine(root, "docs", "game design", "06-玩家卡牌与数值锚点.md"));
+            string economy = File.ReadAllText(Path.Combine(root, "docs", "game design", "04-构筑与经济.md"));
+
+            Assert.That(Between(player, "science"), Is.EqualTo(CardTables.School(catalog, "science").TrimEnd()));
+            Assert.That(Between(player, "mystery"), Is.EqualTo(CardTables.School(catalog, "mystery").TrimEnd()));
+            Assert.That(Between(player, "religion"), Is.EqualTo(CardTables.School(catalog, "religion").TrimEnd()));
+            Assert.That(Between(player, "neutral"), Is.EqualTo(CardTables.School(catalog, "neutral").TrimEnd()));
+            Assert.That(Between(economy, "backs"), Is.EqualTo(CardTables.Backs(catalog).TrimEnd()));
+        }
+
+        private static string Between(string text, string name)
+        {
+            string start = "<!-- generated:" + name + " -->";
+            string end = "<!-- /generated:" + name + " -->";
+            int from = text.IndexOf(start, StringComparison.Ordinal);
+            int to = text.IndexOf(end, StringComparison.Ordinal);
+            Assert.That(from, Is.GreaterThanOrEqualTo(0), name);
+            Assert.That(to, Is.GreaterThan(from), name);
+            return text.Substring(from + start.Length, to - from - start.Length).Trim().Replace("\r\n", "\n").Replace("\r", "\n");
+        }
+
+        private static string RepoRoot()
+        {
+            DirectoryInfo? dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "global.json")))
+                {
+                    return dir.FullName;
+                }
+
+                dir = dir.Parent;
+            }
+
+            throw new DirectoryNotFoundException("找不到仓库根目录。");
         }
 
         private static string[] Deck(ContentCatalog catalog, string id)

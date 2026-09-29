@@ -13,6 +13,7 @@ namespace Pcd.Kernel
         public bool Swift { get; set; }
         public bool Exhaust { get; set; }
         public bool CoverAlly { get; set; }
+        public bool Absorb { get; set; }
         public string Script { get; set; } = "";
         public CostDefinition? Cost { get; set; }
         public TargetDefinition? Target { get; set; }
@@ -24,6 +25,7 @@ namespace Pcd.Kernel
         public int Sacrifice { get; set; }
         public string Resource { get; set; } = "";
         public int Amount { get; set; }
+        public bool All { get; set; }
     }
 
     public sealed class TargetDefinition
@@ -114,16 +116,22 @@ namespace Pcd.Kernel
 
     public sealed class BackDefinition
     {
-        public BackDefinition(string id, string name, int load)
+        public BackDefinition(string id, string name, int load, AbilityDefinition[] abilities, int cap, int points)
         {
             Id = id;
             Name = name;
             Load = load;
+            Abilities = abilities ?? Array.Empty<AbilityDefinition>();
+            Cap = cap;
+            Points = points;
         }
 
         public string Id { get; }
         public string Name { get; }
         public int Load { get; }
+        public AbilityDefinition[] Abilities { get; }
+        public int Cap { get; }
+        public int Points { get; }
     }
 
     public sealed class AbilityInjection

@@ -29,6 +29,8 @@ namespace Pcd.Kernel
             writer.Value(state.IntentCursor);
             writer.Name("revealedIntent");
             writer.Value(state.RevealedIntent);
+            writer.Name("intentMode");
+            writer.Value(state.IntentMode);
             writer.Name("committedCell");
             writer.Value(state.CommittedCell);
             writer.Name("committedTarget");
@@ -166,6 +168,7 @@ namespace Pcd.Kernel
                 Round = root.Require("round").Int(),
                 IntentCursor = root.Require("intentCursor").Int(),
                 RevealedIntent = OptionalString(root, "revealedIntent"),
+                IntentMode = IntentModes.Stored(OptionalString(root, "intentMode")),
                 CommittedCell = root.Require("committedCell").Int(),
                 CommittedTarget = root.Require("committedTarget").Int(),
                 NextInstanceId = root.Require("nextInstance").Int(),

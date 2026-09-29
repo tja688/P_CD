@@ -324,6 +324,7 @@ namespace Pcd.Kernel
         public int Round;
         public int IntentCursor;
         public string? RevealedIntent;
+        public string IntentMode = "on-turn";
         public int CommittedCell;
         public int CommittedTarget;
         public int NextInstanceId = 1;
@@ -386,6 +387,7 @@ namespace Pcd.Kernel
                 Round = Round,
                 IntentCursor = IntentCursor,
                 RevealedIntent = RevealedIntent,
+                IntentMode = IntentMode,
                 CommittedCell = CommittedCell,
                 CommittedTarget = CommittedTarget,
                 NextInstanceId = NextInstanceId,
@@ -435,6 +437,7 @@ namespace Pcd.Kernel
             Round = other.Round;
             IntentCursor = other.IntentCursor;
             RevealedIntent = other.RevealedIntent;
+            IntentMode = other.IntentMode;
             CommittedCell = other.CommittedCell;
             CommittedTarget = other.CommittedTarget;
             NextInstanceId = other.NextInstanceId;
@@ -495,6 +498,7 @@ namespace Pcd.Kernel
                 Phase = MatchPhase.LevelStart,
                 OpportunitiesPerTurn = setup.OpportunitiesPerTurn,
                 MonsterId = monster.Id,
+                IntentMode = IntentModes.Resolve(setup.IntentMode, monster.IntentMode),
                 HasSetup = true,
                 SetupSeed = setup.Seed,
                 SetupMonsterId = setup.MonsterId
@@ -542,7 +546,8 @@ namespace Pcd.Kernel
                 IntentCursor = position.IntentIndex,
                 OpportunitiesPerTurn = position.OpportunitiesPerTurn,
                 RemainingOpportunities = position.Opportunities,
-                MonsterId = monster.Id
+                MonsterId = monster.Id,
+                IntentMode = IntentModes.Resolve(position.IntentMode, monster.IntentMode)
             };
             for (int i = 0; i < monster.Intents.Length; i++)
             {
@@ -678,15 +683,47 @@ namespace Pcd.Kernel
 
         internal static void ArmCountdown(CardDefinition def, CardInstance card)
         {
-            for (int i = 0; i < def.Abilities.Length; i++)
+            ArmCountdown(def.Abilities, card);
+        }
+
+        private static void ArmCountdown(AbilityDefinition[] abilities, CardInstance card)
+        {
+            if (card.TimerMax > 0)
             {
-                if (def.Abilities[i].Trigger == "countdown" && def.Abilities[i].Countdown > 0)
+                return;
+            }
+
+            for (int i = 0; i < abilities.Length; i++)
+            {
+                if (abilities[i].Trigger == "countdown" && abilities[i].Countdown > 0)
                 {
-                    card.TimerMax = def.Abilities[i].Countdown;
-                    card.Timer = def.Abilities[i].Countdown;
+                    card.TimerMax = abilities[i].Countdown;
+                    card.Timer = abilities[i].Countdown;
                     return;
                 }
             }
+        }
+
+        private static int BackPoints(ContentCatalog catalog, string? backId)
+        {
+            if (backId == null || backId.Length == 0)
+            {
+                return 0;
+            }
+
+            BackDefinition? back = catalog.FindBack(backId);
+            return back == null ? 0 : back.Points;
+        }
+
+        private static AbilityDefinition[] BackAbilities(ContentCatalog catalog, string? backId)
+        {
+            if (backId == null || backId.Length == 0)
+            {
+                return Array.Empty<AbilityDefinition>();
+            }
+
+            BackDefinition? back = catalog.FindBack(backId);
+            return back == null ? Array.Empty<AbilityDefinition>() : back.Abilities;
         }
 
         private static CardInstance CreateSpec(ContentCatalog catalog, MatchState state, PositionCard spec, Side owner)
@@ -701,6 +738,7 @@ namespace Pcd.Kernel
                 CardBackId = spec.CardBackId
             };
             ArmCountdown(def, card);
+            ArmCountdown(BackAbilities(catalog, card.CardBackId), card);
             if (spec.Timer.HasValue)
             {
                 card.Timer = spec.Timer.Value;
@@ -732,9 +770,10 @@ namespace Pcd.Kernel
                 return card;
             }
 
+            int printed = def.Points + BackPoints(catalog, card.CardBackId);
             if (spec.Modifiers.Length > 0)
             {
-                card.BasePoints = spec.BasePoints ?? def.Points;
+                card.BasePoints = spec.BasePoints ?? printed;
                 for (int i = 0; i < spec.Modifiers.Length; i++)
                 {
                     card.Modifiers.Add(new PointModifier
@@ -754,7 +793,7 @@ namespace Pcd.Kernel
             }
             else
             {
-                card.BasePoints = def.Points;
+                card.BasePoints = printed;
             }
 
             return card;

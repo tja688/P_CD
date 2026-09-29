@@ -18,6 +18,7 @@ namespace Pcd.Kernel
             public int ContextInstance;
             public int ContextCell;
             public int CapturedPoints;
+            public int Spent;
             public bool Leave;
             public bool LinkRemove;
             public string Host = "";
@@ -142,6 +143,7 @@ namespace Pcd.Kernel
             _holding = false;
             var watchers = new List<PendingAbility>();
             CollectPlayWatchers(card, cell, watchers);
+            CollectAllyPlay(card, watchers);
             SortPending(watchers);
             AppendAll(_queue, watchers);
             AppendAll(_queue, _held);
@@ -175,7 +177,7 @@ namespace Pcd.Kernel
                 return;
             }
 
-            AbilityDefinition[] abilities = _catalog.RequireCard(card.CardId).Abilities;
+            AbilityDefinition[] abilities = Effects(card);
             for (int i = 0; i < abilities.Length; i++)
             {
                 if (abilities[i].Trigger != trigger)
@@ -314,13 +316,15 @@ namespace Pcd.Kernel
             {
                 ability = _catalog.RequireAbility(item.AbilityId);
             }
-            else if (item.AbilityIndex < 0 || item.AbilityIndex >= _catalog.RequireCard(source.CardId).Abilities.Length)
-            {
-                return;
-            }
             else
             {
-                ability = _catalog.RequireCard(source.CardId).Abilities[item.AbilityIndex];
+                AbilityDefinition[] effects = Effects(source);
+                if (item.AbilityIndex < 0 || item.AbilityIndex >= effects.Length)
+                {
+                    return;
+                }
+
+                ability = effects[item.AbilityIndex];
             }
             if (ability.WhileOnBoard && source.Zone != Zone.Board && !item.Leave)
             {
@@ -367,7 +371,7 @@ namespace Pcd.Kernel
                     return false;
                 }
 
-                Pay(source, ability.Cost);
+                Pay(source, ability.Cost, item);
                 return true;
             }
 
@@ -398,7 +402,7 @@ namespace Pcd.Kernel
                 chosen = candidates[NextInt(candidates.Count)];
             }
 
-            Pay(source, ability.Cost);
+            Pay(source, ability.Cost, item);
             if (ability.Target.Pick == "all")
             {
                 for (int i = 0; i < candidates.Count; i++)
@@ -511,6 +515,39 @@ namespace Pcd.Kernel
 
                     break;
                 case "continuous-points":
+                    break;
+                case "take-hand":
+                    TakeToHand(target);
+                    break;
+                case "reset-points":
+                    if (target != null)
+                    {
+                        ResetToBase(target);
+                    }
+
+                    break;
+                case "double-points":
+                    if (target != null && target.Zone == Zone.Board)
+                    {
+                        int current = Points.Current(target);
+                        if (current != 0)
+                        {
+                            AddModifier(target, "effect", current);
+                        }
+                    }
+
+                    break;
+                case "shuffle-self":
+                    ShuffleSelf(source);
+                    break;
+                case "branch-deck":
+                    BranchDeck(source, action, chosen, item);
+                    break;
+                case "branch-resource":
+                    BranchResource(source, action, chosen, item);
+                    break;
+                case "branch-adjacent":
+                    BranchAdjacent(source, action, chosen, item);
                     break;
                 default:
                     throw new InvalidOperationException("未知动作 " + action.Kind + "。");
@@ -707,7 +744,15 @@ namespace Pcd.Kernel
             int amount = action.Amount;
             if (action.From == "discard-count" && source != null)
             {
-                amount = _state.SideOf(source.Owner).Discard.Count;
+                amount = DiscardCount(source.Owner, false) * (action.Amount == 0 ? 1 : action.Amount);
+            }
+            else if (action.From == "discard-units" && source != null)
+            {
+                amount = DiscardCount(source.Owner, true) * (action.Amount == 0 ? 1 : action.Amount);
+            }
+            else if (action.From == "spent")
+            {
+                amount = item.Spent * (action.Amount == 0 ? 1 : action.Amount);
             }
             else if (action.From == "captured-points")
             {
@@ -777,7 +822,12 @@ namespace Pcd.Kernel
                 return false;
             }
 
-            if (cost.Resource.Length > 0 && ResourceAmount(side, cost.Resource) < cost.Amount)
+            if (cost.Resource.Length > 0 && cost.All && ResourceAmount(side, cost.Resource) <= 0)
+            {
+                return false;
+            }
+
+            if (cost.Resource.Length > 0 && !cost.All && ResourceAmount(side, cost.Resource) < cost.Amount)
             {
                 return false;
             }
@@ -785,7 +835,7 @@ namespace Pcd.Kernel
             return true;
         }
 
-        private void Pay(CardInstance? source, CostDefinition? cost)
+        private void Pay(CardInstance? source, CostDefinition? cost, PendingAbility item)
         {
             if (cost == null || source == null && cost.Sacrifice > 0)
             {
@@ -799,6 +849,18 @@ namespace Pcd.Kernel
             if (cost.Sacrifice > 0)
             {
                 Sacrifice(side, cost.Sacrifice);
+            }
+
+            if (cost.Resource.Length > 0 && cost.All)
+            {
+                int spent = ResourceAmount(side, cost.Resource);
+                item.Spent = spent;
+                if (spent > 0)
+                {
+                    GainResource(side, cost.Resource, -spent, cost.Resource);
+                }
+
+                return;
             }
 
             if (cost.Resource.Length > 0 && cost.Amount > 0)
@@ -949,6 +1011,20 @@ namespace Pcd.Kernel
         {
             var batch = new List<PendingAbility>();
             AddCardTrigger(batch, card, "leave", card.InstanceId, cell, true, points);
+            if (!card.IsSpell)
+            {
+                for (int i = 1; i <= 9; i++)
+                {
+                    CardInstance? watcher = _state.Board[i - 1];
+                    if (watcher == null || watcher.InstanceId == card.InstanceId)
+                    {
+                        continue;
+                    }
+
+                    AddCardTrigger(batch, watcher, "unit-leave", card.InstanceId, cell, false, points);
+                }
+            }
+
             SortPending(batch);
             for (int i = 0; i < batch.Count; i++)
             {
@@ -963,7 +1039,7 @@ namespace Pcd.Kernel
                 return true;
             }
 
-            AbilityDefinition[] abilities = _catalog.RequireCard(card.CardId).Abilities;
+            AbilityDefinition[] abilities = Effects(card);
             for (int i = 0; i < abilities.Length; i++)
             {
                 if (abilities[i].Exhaust)
@@ -1013,6 +1089,45 @@ namespace Pcd.Kernel
                 CardInstance copy = Duplicate(origin);
                 PlaceInDeck(copy, origin.Owner);
                 return;
+            }
+
+            if (action.To == "empty")
+            {
+                var open = new List<int>();
+                for (int cell = 1; cell <= 9; cell++)
+                {
+                    if (_state.Board[cell - 1] == null)
+                    {
+                        open.Add(cell);
+                    }
+                }
+
+                if (open.Count == 0)
+                {
+                    return;
+                }
+
+                var options = new Option[open.Count];
+                for (int i = 0; i < open.Count; i++)
+                {
+                    options[i] = new Option
+                    {
+                        Id = "cell:" + open[i].ToString(CultureInfo.InvariantCulture),
+                        Kind = "cell",
+                        Cell = open[i]
+                    };
+                }
+
+                string answer = Ask(Actor(source, item), "choose-cell", action.Ability, options);
+                int chosenCell = ParseInt(answer.Substring(5));
+                if (chosenCell < 1 || chosenCell > 9 || _state.Board[chosenCell - 1] != null)
+                {
+                    return;
+                }
+
+                CardInstance created = Duplicate(origin);
+                Enter(created, chosenCell, "copy");
+                NoticeEnter(created, false);
             }
         }
 
@@ -1203,7 +1318,7 @@ namespace Pcd.Kernel
 
         private void EnqueueCountdown(CardInstance card, bool granted, int grantIndex)
         {
-            AbilityDefinition[] abilities = _catalog.RequireCard(card.CardId).Abilities;
+            AbilityDefinition[] abilities = Effects(card);
             if (!granted)
             {
                 for (int i = 0; i < abilities.Length; i++)
@@ -1440,7 +1555,7 @@ namespace Pcd.Kernel
                 return;
             }
 
-            AbilityDefinition[] abilities = _catalog.RequireCard(card.CardId).Abilities;
+            AbilityDefinition[] abilities = Effects(card);
             for (int i = 0; i < abilities.Length; i++)
             {
                 AbilityDefinition ability = abilities[i];
@@ -1494,7 +1609,7 @@ namespace Pcd.Kernel
                 return;
             }
 
-            AbilityDefinition[] abilities = _catalog.RequireCard(card.CardId).Abilities;
+            AbilityDefinition[] abilities = Effects(card);
             for (int i = 0; i < abilities.Length; i++)
             {
                 if (abilities[i].Trigger == trigger)
@@ -1697,6 +1812,8 @@ namespace Pcd.Kernel
                 AddCardTrigger(batch, watcher, "enemy-spell", card.InstanceId, 0, false, 0);
             }
 
+            CollectAllyPlay(card, batch);
+
             SortPending(batch);
             for (int i = 0; i < batch.Count; i++)
             {
@@ -1752,6 +1869,23 @@ namespace Pcd.Kernel
 
         private List<CardInstance> Candidates(CardInstance? source, TargetDefinition target)
         {
+            if (target.Zone == "discard")
+            {
+                var discarded = new List<CardInstance>();
+                if (source != null && (target.Side == "ally" || target.Side == "any"))
+                {
+                    AddDiscardCandidates(discarded, _state.SideOf(source.Owner).Discard, source, target);
+                }
+
+                if (source != null && (target.Side == "opponent" || target.Side == "any"))
+                {
+                    Side other = source.Owner == Side.Player ? Side.Monster : Side.Player;
+                    AddDiscardCandidates(discarded, _state.SideOf(other).Discard, source, target);
+                }
+
+                return discarded;
+            }
+
             var list = new List<CardInstance>();
             for (int cell = 1; cell <= 9; cell++)
             {
@@ -1782,7 +1916,7 @@ namespace Pcd.Kernel
                 return false;
             }
 
-            if (target.Adjacent)
+            if (target.Adjacent && target.Zone != "discard")
             {
                 if (source == null || source.Zone != Zone.Board || !Adjacent(source.Cell, card.Cell))
                 {
@@ -2060,6 +2194,189 @@ namespace Pcd.Kernel
             return null;
         }
 
+        private AbilityDefinition[] Effects(CardInstance card)
+        {
+            AbilityDefinition[] own = _catalog.RequireCard(card.CardId).Abilities;
+            if (card.CardBackId == null || card.CardBackId.Length == 0)
+            {
+                return own;
+            }
+
+            BackDefinition? back = _catalog.FindBack(card.CardBackId);
+            if (back == null || back.Abilities.Length == 0)
+            {
+                return own;
+            }
+
+            var all = new AbilityDefinition[own.Length + back.Abilities.Length];
+            for (int i = 0; i < own.Length; i++)
+            {
+                all[i] = own[i];
+            }
+
+            for (int i = 0; i < back.Abilities.Length; i++)
+            {
+                all[own.Length + i] = back.Abilities[i];
+            }
+
+            return all;
+        }
+
+        private void AddDiscardCandidates(List<CardInstance> into, List<CardInstance> zone, CardInstance source, TargetDefinition target)
+        {
+            for (int i = 0; i < zone.Count; i++)
+            {
+                if (Matches(source, zone[i], target))
+                {
+                    into.Add(zone[i]);
+                }
+            }
+        }
+
+        private int DiscardCount(Side side, bool unitsOnly)
+        {
+            List<CardInstance> discard = _state.SideOf(side).Discard;
+            if (!unitsOnly)
+            {
+                return discard.Count;
+            }
+
+            int count = 0;
+            for (int i = 0; i < discard.Count; i++)
+            {
+                if (!discard[i].IsSpell)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private void TakeToHand(CardInstance? card)
+        {
+            if (card == null || card.Zone != Zone.Discard)
+            {
+                return;
+            }
+
+            _state.SideOf(card.Owner).Discard.Remove(card);
+            GiveHand(card, "recover");
+        }
+
+        private void ResetToBase(CardInstance card)
+        {
+            if (card.Zone != Zone.Board || card.Modifiers.Count == 0)
+            {
+                return;
+            }
+
+            int before = Points.Current(card);
+            card.Modifiers.Clear();
+            int after = Points.Current(card);
+            if (before == after)
+            {
+                return;
+            }
+
+            Emit(new GameEvent
+            {
+                Type = EventTypes.PointsChanged,
+                Card = card.CardId,
+                Instance = card.InstanceId,
+                Owner = Names.SideName(card.Owner),
+                Source = "effect",
+                Before = before,
+                After = after,
+                Points = after
+            });
+            if (Points.Vital(card) == 0)
+            {
+                RemoveFromBoard(card, "points-zero");
+            }
+        }
+
+        private void ShuffleSelf(CardInstance? card)
+        {
+            if (card == null || card.Zone != Zone.Discard)
+            {
+                return;
+            }
+
+            if (!_state.SideOf(card.Owner).Discard.Remove(card))
+            {
+                return;
+            }
+
+            card.Zone = Zone.None;
+            PlaceInDeck(card, card.Owner);
+        }
+
+        private void BranchDeck(CardInstance? source, ActionDefinition action, CardInstance? chosen, PendingAbility item)
+        {
+            if (source == null)
+            {
+                return;
+            }
+
+            int count = _state.SideOf(source.Owner).MatchDeck.Count;
+            RunActions(source, count <= action.Count ? action.Present : action.Absent, chosen, item);
+        }
+
+        private void BranchResource(CardInstance? source, ActionDefinition action, CardInstance? chosen, PendingAbility item)
+        {
+            Side side = source == null ? Side.Player : source.Owner;
+            int have = ResourceAmount(side, action.Resource);
+            RunActions(source, have >= action.Count ? action.Present : action.Absent, chosen, item);
+        }
+
+        private void BranchAdjacent(CardInstance? source, ActionDefinition action, CardInstance? chosen, PendingAbility item)
+        {
+            bool found = false;
+            if (source != null && source.Zone == Zone.Board)
+            {
+                for (int cell = 1; cell <= 9; cell++)
+                {
+                    CardInstance? other = _state.Board[cell - 1];
+                    if (other != null && other.Owner != source.Owner && Adjacent(source.Cell, cell))
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            RunActions(source, found ? action.Present : action.Absent, chosen, item);
+        }
+
+        private void CollectAllyPlay(CardInstance played, List<PendingAbility> into)
+        {
+            for (int i = 1; i <= 9; i++)
+            {
+                CardInstance? watcher = _state.Board[i - 1];
+                if (watcher == null || watcher.InstanceId == played.InstanceId || watcher.Owner != played.Owner)
+                {
+                    continue;
+                }
+
+                AddCardTrigger(into, watcher, "ally-play", played.InstanceId, played.Cell, false, 0);
+            }
+        }
+
+        private bool Absorbs(CardInstance card)
+        {
+            AbilityDefinition[] abilities = Effects(card);
+            for (int i = 0; i < abilities.Length; i++)
+            {
+                if (abilities[i].Absorb)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private bool IsSwift(CardInstance card)
         {
             return HasFlag(card, true, false, false);
@@ -2072,7 +2389,7 @@ namespace Pcd.Kernel
 
         private bool HasFlag(CardInstance card, bool swift, bool exhaust, bool coverAlly)
         {
-            AbilityDefinition[] abilities = _catalog.RequireCard(card.CardId).Abilities;
+            AbilityDefinition[] abilities = Effects(card);
             for (int i = 0; i < abilities.Length; i++)
             {
                 if (swift && abilities[i].Swift)
@@ -2117,7 +2434,7 @@ namespace Pcd.Kernel
                     continue;
                 }
 
-                AbilityDefinition[] abilities = _catalog.RequireCard(card.CardId).Abilities;
+                AbilityDefinition[] abilities = Effects(card);
                 for (int i = 0; i < abilities.Length; i++)
                 {
                     if (abilities[i].Trigger != "activated")
@@ -2147,7 +2464,7 @@ namespace Pcd.Kernel
             }
 
             card.Activated = true;
-            AbilityDefinition[] abilities = _catalog.RequireCard(card.CardId).Abilities;
+            AbilityDefinition[] abilities = Effects(card);
             for (int i = 0; i < abilities.Length; i++)
             {
                 if (abilities[i].Trigger != "activated")
@@ -2252,7 +2569,7 @@ namespace Pcd.Kernel
             }
 
             int bonus = 0;
-            AbilityDefinition[] abilities = _catalog.RequireCard(card.CardId).Abilities;
+            AbilityDefinition[] abilities = Effects(card);
             for (int i = 0; i < abilities.Length; i++)
             {
                 if (abilities[i].Trigger != "continuous")

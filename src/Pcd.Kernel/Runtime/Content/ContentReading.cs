@@ -97,6 +97,24 @@ namespace Pcd.Kernel
             }
         }
 
+        private static bool IsSchool(string school)
+        {
+            return school.Length == 0 || school == "science" || school == "mystery" || school == "religion" || school == "neutral";
+        }
+
+        private static bool AnyBackHasAbility(BackDefinition[] backs)
+        {
+            for (int i = 0; i < backs.Length; i++)
+            {
+                if (backs[i].Abilities.Length > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool AnyCardHasAbility(CardDefinition[] cards)
         {
             for (int i = 0; i < cards.Length; i++)
@@ -143,6 +161,8 @@ namespace Pcd.Kernel
                 builder.Append(' ');
                 builder.Append(ability.CoverAlly ? "ally" : "-");
                 builder.Append(' ');
+                builder.Append(ability.Absorb ? "absorb" : "-");
+                builder.Append(' ');
                 builder.Append(ability.Script);
                 builder.Append(' ');
                 builder.Append(ability.Side);
@@ -154,6 +174,8 @@ namespace Pcd.Kernel
                     builder.Append(ability.Cost.Resource);
                     builder.Append(' ');
                     builder.Append(ability.Cost.Amount.ToString(CultureInfo.InvariantCulture));
+                    builder.Append(' ');
+                    builder.Append(ability.Cost.All ? "all" : "-");
                 }
 
                 builder.Append('\n');
@@ -195,6 +217,15 @@ namespace Pcd.Kernel
             builder.Append(' ');
             builder.Append(action.Link ? "link" : "-");
             builder.Append('\n');
+            for (int p = 0; p < action.Present.Length; p++)
+            {
+                AppendAction(builder, owner, ability, index * 100 + p, action.Present[p]);
+            }
+
+            for (int p = 0; p < action.Absent.Length; p++)
+            {
+                AppendAction(builder, owner, ability, index * 100 + 50 + p, action.Absent[p]);
+            }
         }
 
         private static List<AbilityDefinition> ReadAbilities(YamlNode? node)
@@ -241,6 +272,7 @@ namespace Pcd.Kernel
                 Swift = node.Str("swift") == "true",
                 Exhaust = node.Str("exhaust") == "true",
                 CoverAlly = node.Str("coverAlly") == "true",
+                Absorb = node.Str("absorb") == "true",
                 Script = node.Str("script") ?? ""
             };
             YamlNode? cost = node.Get("cost");
@@ -255,7 +287,8 @@ namespace Pcd.Kernel
                 {
                     Sacrifice = cost.Has("sacrifice") ? cost.Int("sacrifice") : 0,
                     Resource = cost.Str("resource") ?? "",
-                    Amount = cost.Has("amount") ? cost.Int("amount") : 0
+                    Amount = cost.Has("amount") ? cost.Int("amount") : 0,
+                    All = cost.Str("all") == "true"
                 };
             }
 
@@ -485,7 +518,10 @@ namespace Pcd.Kernel
                 }
 
                 int load = item.Has("load") ? item.Int("load") : 0;
-                list.Add(new BackDefinition(id, item.Str("name") ?? id, load));
+                int cap = item.Has("cap") ? item.Int("cap") : 0;
+                int points = item.Has("points") ? item.Int("points") : 0;
+                AbilityDefinition[] abilities = ReadAbilityList(item.Get("abilities"), id).ToArray();
+                list.Add(new BackDefinition(id, item.Str("name") ?? id, load, abilities, cap, points));
             }
 
             return list;

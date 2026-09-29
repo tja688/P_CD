@@ -25,6 +25,36 @@ namespace Pcd.Kernel
             return string.Join("", parts);
         }
 
+        public static string RenderBack(ContentCatalog catalog, BackDefinition back)
+        {
+            var parts = new List<string>();
+            if (back.Points > 0)
+            {
+                parts.Add("点数+" + back.Points.ToString(CultureInfo.InvariantCulture));
+            }
+
+            for (int i = 0; i < back.Abilities.Length; i++)
+            {
+                string text = RenderAbility(catalog, back.Abilities[i]);
+                if (text.Length > 0)
+                {
+                    parts.Add(text);
+                }
+            }
+
+            if (parts.Count == 0)
+            {
+                return "";
+            }
+
+            if (back.Points > 0 && parts.Count > 1)
+            {
+                parts[0] = parts[0] + "。";
+            }
+
+            return string.Join("", parts);
+        }
+
         private static string RenderAbility(ContentCatalog catalog, AbilityDefinition ability)
         {
             if (ability.Trigger == "static")
@@ -43,6 +73,11 @@ namespace Pcd.Kernel
                 if (ability.CoverAlly)
                 {
                     bits.Add("可以打出到己方卡牌所在的格位");
+                }
+
+                if (ability.Absorb)
+                {
+                    bits.Add("获得该卡的当前点数，然后移除该卡");
                 }
 
                 return bits.Count == 0 ? "" : string.Join("，", bits) + "。";
@@ -88,6 +123,16 @@ namespace Pcd.Kernel
                 return board + "：己方回合结束时，";
             }
 
+            if (ability.Trigger == "unit-leave" && ability.WhileOnBoard)
+            {
+                return board + "：每当一张占场卡离场，";
+            }
+
+            if (ability.Trigger == "ally-play" && ability.WhileOnBoard)
+            {
+                return board + "：每当己方打出一张其他卡牌，";
+            }
+
             if (ability.WhileOnBoard && (ability.Trigger == "continuous" || ability.Trigger == "enemy-adjacent-play" || ability.Trigger == "enemy-spell" || ability.Trigger == "polluted-play" || ability.Trigger == "other-enter"))
             {
                 return board + "：";
@@ -131,7 +176,14 @@ namespace Pcd.Kernel
 
             if (ability.Cost != null && ability.Cost.Resource.Length > 0)
             {
-                parts.Add("消耗" + ability.Cost.Amount.ToString(CultureInfo.InvariantCulture) + "点" + catalog.NameOf(ability.Cost.Resource));
+                if (ability.Cost.All)
+                {
+                    parts.Add("消耗所有" + catalog.NameOf(ability.Cost.Resource));
+                }
+                else
+                {
+                    parts.Add("消耗" + ability.Cost.Amount.ToString(CultureInfo.InvariantCulture) + "点" + catalog.NameOf(ability.Cost.Resource));
+                }
             }
 
             if (ability.Target != null && ability.Target.Pick == "one")
@@ -173,9 +225,15 @@ namespace Pcd.Kernel
         private static string TargetPhrase(ContentCatalog catalog, TargetDefinition target)
         {
             string who = target.Side == "opponent" ? "敌方" : target.Side == "ally" ? "己方" : "";
+            if (target.Zone == "discard")
+            {
+                return "一张" + who + "弃牌堆中的卡牌";
+            }
+
             string where = target.Adjacent ? Word(catalog, "keyword.adjacent", "相邻") : "";
             string status = target.Status.Length == 0 ? "" : "拥有" + StatusName(catalog, target.Status) + "的";
-            return "一张" + where + status + who + "卡牌";
+            string kind = target.Kind == "unit" ? "占场卡" : "卡牌";
+            return "一张" + where + status + who + kind;
         }
 
         private static string ActionPhrase(ContentCatalog catalog, ActionDefinition action)
@@ -190,6 +248,11 @@ namespace Pcd.Kernel
                 if (action.Target == "adjacent-opponents")
                 {
                     return "为相邻敌方卡牌添加" + StatusName(catalog, action.Status);
+                }
+
+                if (action.Status == "status.seal")
+                {
+                    return "封印该卡牌";
                 }
 
                 if (action.Status == "status.protect" || action.Status == "status.return")
@@ -208,9 +271,23 @@ namespace Pcd.Kernel
             if (action.Kind == "change-points")
             {
                 string who = action.Target == "self" ? "本卡" : "使其";
-                if (action.From == "discard-count")
+                if (action.From == "discard-count" && action.Amount <= 1 && action.Target == "self")
                 {
                     return "本卡点数+己方弃牌堆的卡牌数量";
+                }
+
+                if (action.From == "discard-count" || action.From == "discard-units")
+                {
+                    int each = action.Amount == 0 ? 1 : action.Amount;
+                    string whoCount = action.Target == "self" ? "本卡" : "使其";
+                    string pile = action.From == "discard-units" ? "己方弃牌堆里每有一张占场卡，" : "己方弃牌堆里每有一张卡牌，";
+                    return pile + whoCount + "点数+" + each.ToString(CultureInfo.InvariantCulture);
+                }
+
+                if (action.From == "spent")
+                {
+                    int eachSpent = action.Amount == 0 ? 1 : action.Amount;
+                    return "每消耗1点，本卡点数+" + eachSpent.ToString(CultureInfo.InvariantCulture);
                 }
 
                 string amount = action.Amount.ToString(CultureInfo.InvariantCulture);
@@ -224,7 +301,23 @@ namespace Pcd.Kernel
 
             if (action.Kind == "copy")
             {
-                string place = action.To == "mirror" ? "在镜像格生成一张本卡的复制" : action.To == "deck" ? "将一张本卡的复制洗入牌组" : "生成一张复制";
+                string place;
+                if (action.Of == "chosen" && action.To == "empty")
+                {
+                    place = "在一个空格生成一张它的复制";
+                }
+                else if (action.To == "mirror")
+                {
+                    place = "在镜像格生成一张本卡的复制";
+                }
+                else if (action.To == "deck")
+                {
+                    place = "将一张本卡的复制洗入牌组";
+                }
+                else
+                {
+                    place = "生成一张复制";
+                }
                 if (action.Link)
                 {
                     place += "，当其中一张离场，移除另一张";
@@ -257,7 +350,54 @@ namespace Pcd.Kernel
 
             if (action.Kind == "draw")
             {
-                return "抽" + action.Count.ToString(CultureInfo.InvariantCulture) + "张牌";
+                int drawn = action.Count == 0 ? 1 : action.Count;
+                return drawn == 1 ? "抽一张牌" : "抽" + CountWord(drawn) + "张牌";
+            }
+
+            if (action.Kind == "look-top")
+            {
+                int looked = action.Count == 0 ? 3 : action.Count;
+                return "查看牌组顶部" + looked.ToString(CultureInfo.InvariantCulture) + "张卡牌，选择一张加入手牌，移除其余";
+            }
+
+            if (action.Kind == "play-extra")
+            {
+                return "再打出一张手牌";
+            }
+
+            if (action.Kind == "take-hand")
+            {
+                return "将其放回手牌";
+            }
+
+            if (action.Kind == "reset-points")
+            {
+                return "将其点数重置为初始点数";
+            }
+
+            if (action.Kind == "double-points")
+            {
+                return "本卡点数翻倍";
+            }
+
+            if (action.Kind == "shuffle-self")
+            {
+                return "将本卡洗入牌组";
+            }
+
+            if (action.Kind == "branch-deck")
+            {
+                return "若己方牌组不超过" + action.Count.ToString(CultureInfo.InvariantCulture) + "张，则" + JoinActions(catalog, action.Present) + Otherwise(catalog, action.Absent);
+            }
+
+            if (action.Kind == "branch-resource")
+            {
+                return "若" + catalog.NameOf(action.Resource) + "不少于" + action.Count.ToString(CultureInfo.InvariantCulture) + "，则" + JoinActions(catalog, action.Present) + Otherwise(catalog, action.Absent);
+            }
+
+            if (action.Kind == "branch-adjacent")
+            {
+                return "若有相邻敌方卡牌，则" + JoinActions(catalog, action.Present) + Otherwise(catalog, action.Absent);
             }
 
             if (action.Kind == "remove")
@@ -279,6 +419,16 @@ namespace Pcd.Kernel
             }
 
             return "0";
+        }
+
+        private static string Otherwise(ContentCatalog catalog, ActionDefinition[] actions)
+        {
+            if (actions.Length == 0)
+            {
+                return "";
+            }
+
+            return "，否则" + JoinActions(catalog, actions);
         }
 
         private static string JoinActions(ContentCatalog catalog, ActionDefinition[] actions)

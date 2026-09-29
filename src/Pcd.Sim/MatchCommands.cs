@@ -24,7 +24,7 @@ namespace Pcd.Sim
             stdout.Write('\n');
             if (options.Auto)
             {
-                PlayoutResult result = RandomPlayout.Play(catalog, setup, options.Max, step =>
+                PlayoutResult result = AiPlayout.Play(catalog, setup, options.Max, step =>
                 {
                     WriteEvents(stdout, catalog, step.Events);
                     if (step.Pending != null && step.View != null)
@@ -64,76 +64,130 @@ namespace Pcd.Sim
                 return 1;
             }
 
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
-            int playerWins = 0;
-            int monsterWins = 0;
-            int draws = 0;
-            int unfinished = 0;
-            int totalRounds = 0;
-            for (int i = 0; i < options.Games; i++)
+            if (options.Matrix)
             {
-                var setup = DefaultSetup(catalog, options.Seed + (ulong)i);
-                PlayoutResult result = RandomPlayout.Play(catalog, setup, options.Max, null);
-                if (result.Winner == "player")
-                {
-                    playerWins++;
-                    totalRounds += result.Rounds;
-                }
-                else if (result.Winner == "monster")
-                {
-                    monsterWins++;
-                    totalRounds += result.Rounds;
-                }
-                else if (result.Winner == "draw")
-                {
-                    draws++;
-                    totalRounds += result.Rounds;
-                }
-                else
-                {
-                    unfinished++;
-                }
+                return BatchMatrix(options, stdout);
             }
 
-            int finished = playerWins + monsterWins + draws;
-            string average = finished == 0
-                ? "0.00"
-                : ((double)totalRounds / finished).ToString("0.00", CultureInfo.InvariantCulture);
-            stdout.Write("# 批量模拟\n\n");
-            stdout.Write("- 对局：");
-            stdout.Write(options.Games.ToString(CultureInfo.InvariantCulture));
-            stdout.Write("\n- 种子：");
-            stdout.Write(options.Seed.ToString(CultureInfo.InvariantCulture));
-            stdout.Write("\n- 玩家胜：");
-            stdout.Write(playerWins.ToString(CultureInfo.InvariantCulture));
-            stdout.Write("\n- 怪物胜：");
-            stdout.Write(monsterWins.ToString(CultureInfo.InvariantCulture));
-            stdout.Write("\n- 平局：");
-            stdout.Write(draws.ToString(CultureInfo.InvariantCulture));
-            stdout.Write("\n- 未结束：");
-            stdout.Write(unfinished.ToString(CultureInfo.InvariantCulture));
-            stdout.Write("\n- 完成对局的总回合：");
-            stdout.Write(totalRounds.ToString(CultureInfo.InvariantCulture));
-            stdout.Write("\n- 平均回合：");
-            stdout.Write(average);
-            stdout.Write("\n\n");
-            stdout.Write("{\"games\":");
-            stdout.Write(options.Games.ToString(CultureInfo.InvariantCulture));
-            stdout.Write(",\"seed\":");
-            stdout.Write(options.Seed.ToString(CultureInfo.InvariantCulture));
-            stdout.Write(",\"playerWins\":");
-            stdout.Write(playerWins.ToString(CultureInfo.InvariantCulture));
-            stdout.Write(",\"monsterWins\":");
-            stdout.Write(monsterWins.ToString(CultureInfo.InvariantCulture));
-            stdout.Write(",\"draws\":");
-            stdout.Write(draws.ToString(CultureInfo.InvariantCulture));
-            stdout.Write(",\"unfinished\":");
-            stdout.Write(unfinished.ToString(CultureInfo.InvariantCulture));
-            stdout.Write(",\"finished\":");
-            stdout.Write(finished.ToString(CultureInfo.InvariantCulture));
-            stdout.Write(",\"totalRounds\":");
-            stdout.Write(totalRounds.ToString(CultureInfo.InvariantCulture));
-            stdout.Write("}\n");
+            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            var row = new MatchupReport
+            {
+                DeckId = "default",
+                DeckName = "白板",
+                MonsterId = catalog.DefaultMonster ?? "",
+                MonsterName = catalog.DefaultMonster == null ? "" : catalog.NameOf(catalog.DefaultMonster)
+            };
+            for (int i = 0; i < options.Games; i++)
+            {
+                MatchSetup setup = DefaultSetup(catalog, options.Seed + (ulong)i);
+                PlayoutResult result = RandomPlayout.Play(catalog, setup, options.Max, null);
+                MatchMetrics.Observe(row, setup.BuildDeck, result);
+            }
+
+            WriteBatch(stdout, new[] { row }, options.Seed);
+            return 0;
+        }
+
+        public static int Scenario(SimOptions options, TextWriter stdout, TextWriter stderr, TextReader stdin)
+        {
+            if (string.IsNullOrEmpty(options.File))
+            {
+                stderr.Write("残局需要 --file。\n");
+                stderr.Write(SimProgram.Usage);
+                return 1;
+            }
+
+            if (options.Max < 1)
+            {
+                stderr.Write("决策上限至少为 1。\n");
+                return 1;
+            }
+
+            string text = File.ReadAllText(options.File!);
+            ContentCatalog? catalog = EmbeddedCatalog(options.File!, text);
+            OpenedScenario opened = ScenarioFile.Open(text, catalog);
+            stdout.Write("# 残局\n\n");
+            if (options.Auto)
+            {
+                Personality personality = opened.Catalog.RequireMonster(opened.MonsterId).Personality.Copy();
+                PlayoutResult result = AiPlayout.Continue(opened.Session, personality, opened.Seed, options.Max, step =>
+                {
+                    WriteEvents(stdout, opened.Catalog, step.Events);
+                    if (step.Pending != null && step.View != null)
+                    {
+                        WriteBoard(stdout, opened.Catalog, step.View);
+                        WriteOptions(stdout, opened.Catalog, step.View, step.Pending);
+                        if (step.Choice != null)
+                        {
+                            WriteChoice(stdout, opened.Catalog, step.View, step.Pending, step.Choice);
+                        }
+                    }
+                });
+                WriteEnding(stdout, result);
+                return result.Winner == "unfinished" ? 2 : 0;
+            }
+
+            return PlayOpened(opened, options, stdout, stderr, stdin);
+        }
+
+        public static int Golden(string[] args, TextWriter stdout, TextWriter stderr)
+        {
+            if (args.Length < 2 || (args[1] != "record" && args[1] != "diff"))
+            {
+                stderr.Write("golden 需要 record 或 diff。\n");
+                stderr.Write(SimProgram.Usage);
+                return 1;
+            }
+
+            string? dir = null;
+            ulong seed = 1;
+            int max = 80;
+            for (int i = 2; i < args.Length; i++)
+            {
+                if (args[i] == "--dir" && i + 1 < args.Length)
+                {
+                    dir = args[++i];
+                    continue;
+                }
+
+                if (args[i] == "--seed" && i + 1 < args.Length && ulong.TryParse(args[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong parsedSeed))
+                {
+                    seed = parsedSeed;
+                    i++;
+                    continue;
+                }
+
+                if (args[i] == "--max" && i + 1 < args.Length && int.TryParse(args[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedMax))
+                {
+                    max = parsedMax;
+                    i++;
+                    continue;
+                }
+
+                stderr.Write("未知参数：" + args[i] + "\n");
+                return 1;
+            }
+
+            if (string.IsNullOrEmpty(dir))
+            {
+                stderr.Write("golden 需要 --dir。\n");
+                return 1;
+            }
+
+            if (max < 1)
+            {
+                stderr.Write("决策上限至少为 1。\n");
+                return 1;
+            }
+
+            ContentCatalog catalog = ContentCatalog.LoadRules();
+            if (args[1] == "record")
+            {
+                stdout.Write(BehaviorArchive.Record(catalog, dir!, seed, max));
+                return 0;
+            }
+
+            stdout.Write(BehaviorArchive.Diff(catalog, dir!));
             return 0;
         }
 
@@ -197,7 +251,7 @@ namespace Pcd.Sim
         private static int PlayHuman(ContentCatalog catalog, MatchSetup setup, SimOptions options, TextWriter stdout, TextWriter stderr, TextReader stdin)
         {
             MatchSession session = MatchSession.Start(catalog, setup);
-            var monster = new RandomDecider(new DeterministicRng(setup.Seed));
+            Personality personality = catalog.RequireMonster(setup.MonsterId).Personality.Copy();
             AdvanceResult step = session.Advance();
             int decisions = 0;
             while (step.Result == null)
@@ -220,7 +274,7 @@ namespace Pcd.Sim
                 string choice;
                 if (step.Pending.Actor == "monster")
                 {
-                    choice = monster.Choose(step.Pending);
+                    choice = MonsterAi.Choose(session, step.Pending, personality, DecisionSeed.Mix(setup.Seed, 0, step.Pending.Id)).Choice;
                 }
                 else
                 {
@@ -255,7 +309,7 @@ namespace Pcd.Sim
                 Rounds = step.Result.Rounds,
                 Decisions = decisions,
                 Hash = session.EventHash(),
-                ReplayJson = session.ToReplay(),
+                ReplayJson = session.HasSetup ? session.ToReplay() : "null",
                 Session = session
             };
             WriteEnding(stdout, finished);
@@ -264,6 +318,159 @@ namespace Pcd.Sim
                 File.WriteAllText(options.ReplayOut, finished.ReplayJson);
             }
 
+            return 0;
+        }
+
+        private static int BatchMatrix(SimOptions options, TextWriter stdout)
+        {
+            ContentCatalog catalog = ContentCatalog.LoadRules();
+            var rows = new System.Collections.Generic.List<MatchupReport>();
+            int index = 0;
+            for (int d = 0; d < catalog.Decks.Length; d++)
+            {
+                DeckDefinition deck = catalog.Decks[d];
+                for (int m = 0; m < catalog.Monsters.Length; m++)
+                {
+                    MonsterDefinition monster = catalog.Monsters[m];
+                    var row = new MatchupReport
+                    {
+                        DeckId = deck.Id,
+                        DeckName = deck.Name,
+                        MonsterId = monster.Id,
+                        MonsterName = monster.Name
+                    };
+                    for (int g = 0; g < options.Games; g++)
+                    {
+                        var setup = new MatchSetup
+                        {
+                            Seed = options.Seed + (ulong)index,
+                            MonsterId = monster.Id,
+                            BuildDeck = deck.Cards,
+                            OpportunitiesPerTurn = 1
+                        };
+                        index++;
+                        PlayoutResult result = AiPlayout.Play(catalog, setup, options.Max, null);
+                        MatchMetrics.Observe(row, deck.Cards, result);
+                    }
+
+                    rows.Add(row);
+                }
+            }
+
+            WriteBatch(stdout, rows.ToArray(), options.Seed);
+            return 0;
+        }
+
+        private static void WriteBatch(TextWriter stdout, MatchupReport[] rows, ulong seed)
+        {
+            stdout.Write(MatchMetrics.Markdown(rows));
+            stdout.Write('\n');
+            stdout.Write(MatchMetrics.Json(rows, seed));
+            stdout.Write('\n');
+        }
+
+        private static ContentCatalog? EmbeddedCatalog(string path, string text)
+        {
+            YamlNode doc = YamlNode.Parse(text);
+            string? catalogPath = doc.Str("catalog");
+            if (catalogPath == null)
+            {
+                return null;
+            }
+
+            string? folder = Path.GetDirectoryName(path);
+            string full = folder == null ? catalogPath : Path.Combine(folder, catalogPath);
+            return ContentCatalog.Parse(File.ReadAllText(full));
+        }
+
+        private static int PlayOpened(OpenedScenario opened, SimOptions options, TextWriter stdout, TextWriter stderr, TextReader stdin)
+        {
+            Personality personality = opened.Catalog.RequireMonster(opened.MonsterId).Personality.Copy();
+            AdvanceResult step = opened.Session.Advance();
+            int decisions = 0;
+            while (step.Result == null)
+            {
+                if (step.Pending == null)
+                {
+                    throw new InvalidOperationException("对局停在没有决策的地方。");
+                }
+
+                WriteEvents(stdout, opened.Catalog, step.Events);
+                MatchView view = opened.Session.View("omniscient");
+                WriteBoard(stdout, opened.Catalog, view);
+                WriteOptions(stdout, opened.Catalog, view, step.Pending);
+                if (decisions >= options.Max)
+                {
+                    WriteUnfinished(stdout, opened.Session);
+                    return 2;
+                }
+
+                string choice;
+                if (step.Pending.Actor == "monster")
+                {
+                    choice = MonsterAi.Choose(opened.Session, step.Pending, personality, DecisionSeed.Mix(opened.Seed, 0, step.Pending.Id)).Choice;
+                }
+                else
+                {
+                    string? line = stdin.ReadLine();
+                    if (line == null)
+                    {
+                        stderr.Write("没有输入。\n");
+                        return 1;
+                    }
+
+                    if (!int.TryParse(line.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int number)
+                        || number < 1
+                        || number > step.Pending.Options.Length)
+                    {
+                        stderr.Write("请输入选项编号。\n");
+                        return 1;
+                    }
+
+                    choice = step.Pending.Options[number - 1].Id;
+                }
+
+                WriteChoice(stdout, opened.Catalog, view, step.Pending, choice);
+                decisions++;
+                step = opened.Session.SubmitAndAdvance(choice);
+            }
+
+            WriteEvents(stdout, opened.Catalog, step.Events);
+            WriteEnding(stdout, new PlayoutResult
+            {
+                Winner = step.Result!.Winner,
+                Reason = step.Result.Reason,
+                Rounds = step.Result.Rounds,
+                Decisions = decisions,
+                Hash = opened.Session.EventHash(),
+                ReplayJson = opened.Session.HasSetup ? opened.Session.ToReplay() : "null",
+                Session = opened.Session
+            });
+            return 0;
+        }
+
+        private static int ExplainFile(string path, TextWriter stdout, TextWriter stderr)
+        {
+            string text = File.ReadAllText(path);
+            OpenedScenario opened = ScenarioFile.Open(text, EmbeddedCatalog(path, text));
+            AdvanceResult step = opened.Session.Advance();
+            if (step.Pending == null || step.Pending.Actor != "monster")
+            {
+                stderr.Write("这个残局停下来时不是怪物在决定落点。\n");
+                return 1;
+            }
+
+            Personality personality = opened.Catalog.RequireMonster(opened.MonsterId).Personality.Copy();
+            AiReport report = MonsterAi.Choose(
+                opened.Session,
+                step.Pending,
+                personality,
+                DecisionSeed.Mix(opened.Seed, 0, step.Pending.Id));
+            string? intent = opened.Session.View("public").RevealedIntent;
+            stdout.Write(report.ToMarkdown(opened.Catalog, intent));
+            stdout.Write('\n');
+            stdout.Write(report.ToJson());
+            stdout.Write('\n');
             return 0;
         }
 
@@ -319,7 +526,7 @@ namespace Pcd.Sim
                 Reason = "max-decisions",
                 Rounds = session.View("omniscient").Round,
                 Hash = session.EventHash(),
-                ReplayJson = session.ToReplay(),
+                ReplayJson = session.HasSetup ? session.ToReplay() : "null",
                 Session = session
             };
             WriteEnding(stdout, result);
@@ -426,6 +633,17 @@ namespace Pcd.Sim
 
         public static int Explain(string[] args, TextWriter stdout, TextWriter stderr)
         {
+            if (args.Length >= 2 && args[1] == "--file")
+            {
+                if (args.Length != 3)
+                {
+                    stderr.Write("explain --file 需要一个残局路径。\n");
+                    return 1;
+                }
+
+                return ExplainFile(args[2], stdout, stderr);
+            }
+
             ContentCatalog catalog = ContentCatalog.LoadRules();
             if (args.Length > 2)
             {
@@ -456,6 +674,51 @@ namespace Pcd.Sim
             }
 
             return 0;
+        }
+
+        public static int Tables(TextWriter stdout, TextWriter stderr)
+        {
+            try
+            {
+                ContentCatalog catalog = ContentCatalog.LoadRules();
+                stdout.Write("<!-- generated:science -->\n");
+                stdout.Write(CardTables.School(catalog, "science"));
+                stdout.Write("<!-- /generated:science -->\n");
+                stdout.Write("<!-- generated:mystery -->\n");
+                stdout.Write(CardTables.School(catalog, "mystery"));
+                stdout.Write("<!-- /generated:mystery -->\n");
+                stdout.Write("<!-- generated:religion -->\n");
+                stdout.Write(CardTables.School(catalog, "religion"));
+                stdout.Write("<!-- /generated:religion -->\n");
+                stdout.Write("<!-- generated:neutral -->\n");
+                stdout.Write(CardTables.School(catalog, "neutral"));
+                stdout.Write("<!-- /generated:neutral -->\n");
+                stdout.Write("<!-- generated:backs -->\n");
+                stdout.Write(CardTables.Backs(catalog));
+                stdout.Write("<!-- /generated:backs -->\n");
+                return 0;
+            }
+            catch (ContentException ex)
+            {
+                stderr.Write(ex.Message);
+                stderr.Write('\n');
+                return 1;
+            }
+        }
+
+        public static int Quote(TextWriter stdout, TextWriter stderr)
+        {
+            try
+            {
+                stdout.Write(LoadQuote.Report(ContentCatalog.LoadRules()));
+                return 0;
+            }
+            catch (ContentException ex)
+            {
+                stderr.Write(ex.Message);
+                stderr.Write('\n');
+                return 1;
+            }
         }
 
         private static void WriteExplained(TextWriter stdout, ContentCatalog catalog, string cardId)

@@ -246,6 +246,28 @@ namespace Pcd.Kernel
             writer.Value(view.RevealedIntent);
             writer.Name("intentIndex");
             writer.Value(view.IntentIndex);
+            writer.Name("intentMode");
+            writer.Value(view.IntentMode);
+            writer.Name("committedCell");
+            writer.Value(view.CommittedCell);
+            writer.Name("committedTarget");
+            writer.Value(view.CommittedTarget);
+            writer.Name("intents");
+            writer.BeginArray();
+            for (int i = 0; i < view.Intents.Length; i++)
+            {
+                writer.Value(view.Intents[i]);
+            }
+
+            writer.EndArray();
+            writer.Name("unseen");
+            writer.BeginArray();
+            for (int i = 0; i < view.Unseen.Length; i++)
+            {
+                writer.Value(view.Unseen[i]);
+            }
+
+            writer.EndArray();
             writer.Name("playerPoints");
             writer.Value(view.PlayerPoints);
             writer.Name("monsterPoints");

@@ -155,6 +155,11 @@ namespace Pcd.Kernel
         public int RemainingOpportunities { get; internal set; }
         public string? RevealedIntent { get; internal set; }
         public int IntentIndex { get; internal set; }
+        public string IntentMode { get; internal set; } = "on-turn";
+        public int CommittedCell { get; internal set; }
+        public int CommittedTarget { get; internal set; }
+        public string[] Intents { get; internal set; } = Array.Empty<string>();
+        public string[] Unseen { get; internal set; } = Array.Empty<string>();
         public int PlayerPoints { get; internal set; }
         public int MonsterPoints { get; internal set; }
         public int PlayerOccupancy { get; internal set; }
@@ -205,6 +210,8 @@ namespace Pcd.Kernel
         public string[] BuildDeck { get; set; } = Array.Empty<string>();
         public int OpportunitiesPerTurn { get; set; } = 1;
         public AbilityInjection[] Injections { get; set; } = Array.Empty<AbilityInjection>();
+        public string IntentMode { get; set; } = "";
+        public string Information { get; set; } = "";
     }
 
     public sealed class MatchPosition
@@ -216,6 +223,7 @@ namespace Pcd.Kernel
         public int IntentIndex { get; set; }
         public int OpportunitiesPerTurn { get; set; } = 1;
         public int Opportunities { get; set; } = 1;
+        public string IntentMode { get; set; } = "";
         public int[] PollutedCells { get; set; } = Array.Empty<int>();
         public PositionCard[] Board { get; set; } = Array.Empty<PositionCard>();
         public PositionCard[] PlayerMatchDeck { get; set; } = Array.Empty<PositionCard>();
