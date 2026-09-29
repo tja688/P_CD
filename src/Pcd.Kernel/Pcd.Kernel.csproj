@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <RootNamespace>Pcd.Kernel</RootNamespace>
+    <AssemblyName>Pcd.Kernel</AssemblyName>
+    <Description>Shared rules kernel. No UnityEngine references.</Description>
+  </PropertyGroup>
+</Project>
