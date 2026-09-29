@@ -14,7 +14,16 @@ namespace Pcd.Kernel.Tests
         {
             string text = File.ReadAllText(path);
             YamlNode doc = YamlNode.Parse(text);
-            ContentCatalog catalog = ContentCatalog.Parse(text);
+            ContentCatalog catalog;
+            string? catalogPath = doc.Str("catalog");
+            if (catalogPath != null)
+            {
+                catalog = ContentCatalog.Parse(File.ReadAllText(Path.Combine(RepoRoot(), catalogPath)));
+            }
+            else
+            {
+                catalog = ContentCatalog.Parse(text);
+            }
             string monsterId = RequireMonsterId(doc);
             MatchSession session;
             if (doc.Has("position"))
@@ -81,13 +90,39 @@ namespace Pcd.Kernel.Tests
                 Assert.Fail("场景缺少 monster。");
             }
 
-            string? id = monster!.Str("id");
+            if (monster!.IsScalar)
+            {
+                if (monster.Scalar == null)
+                {
+                    Assert.Fail("场景怪物缺少 id。");
+                }
+
+                return monster.Scalar!;
+            }
+
+            string? id = monster.Str("id");
             if (id == null)
             {
                 Assert.Fail("场景怪物缺少 id。");
             }
 
             return id!;
+        }
+
+        private static string RepoRoot()
+        {
+            DirectoryInfo? dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "global.json")))
+                {
+                    return dir.FullName;
+                }
+
+                dir = dir.Parent;
+            }
+
+            throw new DirectoryNotFoundException("找不到仓库根目录。");
         }
 
         private static MatchSetup BuildSetup(YamlNode doc, string monsterId)
@@ -97,7 +132,8 @@ namespace Pcd.Kernel.Tests
                 Seed = ReadULong(doc, "seed", 1),
                 MonsterId = monsterId,
                 BuildDeck = ReadIdList(doc.Get("deck")),
-                OpportunitiesPerTurn = doc.Has("opportunitiesPerTurn") ? doc.Int("opportunitiesPerTurn") : 1
+                OpportunitiesPerTurn = doc.Has("opportunitiesPerTurn") ? doc.Int("opportunitiesPerTurn") : 1,
+                Injections = ReadInjections(doc.Get("injections"))
             };
         }
 
@@ -113,7 +149,8 @@ namespace Pcd.Kernel.Tests
                 OpportunitiesPerTurn = position.Has("opportunitiesPerTurn") ? position.Int("opportunitiesPerTurn") : 1,
                 Opportunities = position.Has("opportunities") ? position.Int("opportunities") : 1,
                 PollutedCells = ReadInts(position.Get("polluted")),
-                Board = ReadCards(position.Get("board"))
+                Board = ReadCards(position.Get("board")),
+                Injections = ReadInjections(position.Get("injections"))
             };
             YamlNode? player = position.Get("player");
             if (player != null)
@@ -122,6 +159,7 @@ namespace Pcd.Kernel.Tests
                 built.PlayerHand = ReadCards(player.Get("hand"));
                 built.PlayerDiscard = ReadCards(player.Get("discard"));
                 built.PlayerVoid = ReadCards(player.Get("void"));
+                built.PlayerResources = ReadResources(player);
             }
 
             YamlNode? monster = position.Get("monster");
@@ -129,6 +167,7 @@ namespace Pcd.Kernel.Tests
             {
                 built.MonsterDiscard = ReadCards(monster.Get("discard"));
                 built.MonsterVoid = ReadCards(monster.Get("void"));
+                built.MonsterResources = ReadResources(monster);
             }
 
             return built;
@@ -190,6 +229,26 @@ namespace Pcd.Kernel.Tests
             if (expect.Has("playerDiscard"))
             {
                 CheckZone(path, label, "playerDiscard", view.PlayerDiscard, expect.Get("playerDiscard"));
+            }
+
+            if (expect.Has("playerVoid"))
+            {
+                CheckZone(path, label, "playerVoid", view.PlayerVoid, expect.Get("playerVoid"));
+            }
+
+            if (expect.Has("deck"))
+            {
+                CheckZone(path, label, "deck", view.MatchDeck, expect.Get("deck"));
+            }
+
+            if (expect.Has("playerFaith"))
+            {
+                AssertEqual(path, label, "playerFaith", expect.Int("playerFaith"), Pool(view, "player", "resource.faith"));
+            }
+
+            if (expect.Has("monsterFaith"))
+            {
+                AssertEqual(path, label, "monsterFaith", expect.Int("monsterFaith"), Pool(view, "monster", "resource.faith"));
             }
 
             if (expect.Has("monsterDiscard"))
@@ -342,6 +401,11 @@ namespace Pcd.Kernel.Tests
                 AssertEqual(path, label, "type", expected.Str("type"), pending!.Type);
             }
 
+            if (expected.Has("ability"))
+            {
+                AssertEqual(path, label, "ability", expected.Str("ability"), pending!.Ability);
+            }
+
             if (expected.Has("options"))
             {
                 YamlNode? options = expected.Get("options");
@@ -451,6 +515,16 @@ namespace Pcd.Kernel.Tests
                 {
                     AssertEqual(path, label, "cell " + cell + " back", item.Str("back"), card!.CardBackId);
                 }
+
+                if (item.Has("timer"))
+                {
+                    AssertEqual(path, label, "cell " + cell + " timer", item.Int("timer"), card!.Timer);
+                }
+
+                if (item.Has("statuses"))
+                {
+                    CheckStatuses(path, label, "cell " + cell, card!.Statuses, item.Get("statuses"));
+                }
             }
 
             if (!exact)
@@ -554,6 +628,42 @@ namespace Pcd.Kernel.Tests
                     card.BasePoints = item.Int("base");
                 }
 
+                if (item.Has("timer"))
+                {
+                    card.Timer = item.Int("timer");
+                }
+
+                if (item.Has("timerMax"))
+                {
+                    card.TimerMax = item.Int("timerMax");
+                }
+
+                YamlNode? statuses = item.Get("statuses");
+                if (statuses != null)
+                {
+                    if (!statuses.IsSequence)
+                    {
+                        throw new FormatException("statuses 必须是列表。");
+                    }
+
+                    card.Statuses = new string[statuses.Items.Count];
+                    card.StatusRounds = new int[statuses.Items.Count];
+                    for (int s = 0; s < statuses.Items.Count; s++)
+                    {
+                        YamlNode status = statuses.Items[s];
+                        if (status.IsScalar)
+                        {
+                            card.Statuses[s] = status.Scalar ?? "";
+                            card.StatusRounds[s] = 0;
+                        }
+                        else
+                        {
+                            card.Statuses[s] = status.Str("id") ?? "";
+                            card.StatusRounds[s] = status.Has("round") ? status.Int("round") : 0;
+                        }
+                    }
+                }
+
                 YamlNode? modifiers = item.Get("modifiers");
                 if (modifiers != null)
                 {
@@ -578,6 +688,87 @@ namespace Pcd.Kernel.Tests
             }
 
             return cards;
+        }
+
+        private static void CheckStatuses(string path, string label, string where, string[] actual, YamlNode? expected)
+        {
+            if (expected == null || !expected.IsSequence)
+            {
+                Assert.Fail(path + " " + label + " 的 " + where + " 状态必须是列表。");
+            }
+
+            if (actual.Length != expected!.Items.Count)
+            {
+                Assert.Fail(path + " " + label + " " + where + " 状态数量不符。");
+            }
+
+            for (int i = 0; i < actual.Length; i++)
+            {
+                string? id = expected.Items[i].IsScalar ? expected.Items[i].Scalar : expected.Items[i].Str("id");
+                AssertEqual(path, label, where + " status", id, actual[i]);
+            }
+        }
+
+        private static int Pool(MatchView view, string owner, string id)
+        {
+            for (int i = 0; i < view.Pools.Length; i++)
+            {
+                if (view.Pools[i].Owner == owner && view.Pools[i].Id == id)
+                {
+                    return view.Pools[i].Amount;
+                }
+            }
+
+            return 0;
+        }
+
+        private static SetupResource[] ReadResources(YamlNode node)
+        {
+            var list = new List<SetupResource>();
+            if (node.Has("faith"))
+            {
+                list.Add(new SetupResource { Id = "resource.faith", Amount = node.Int("faith") });
+            }
+
+            YamlNode? resources = node.Get("resources");
+            if (resources != null && resources.IsSequence)
+            {
+                for (int i = 0; i < resources.Items.Count; i++)
+                {
+                    list.Add(new SetupResource
+                    {
+                        Id = resources.Items[i].Str("id") ?? "",
+                        Amount = resources.Items[i].Int("amount")
+                    });
+                }
+            }
+
+            return list.ToArray();
+        }
+
+        private static AbilityInjection[] ReadInjections(YamlNode? node)
+        {
+            if (node == null)
+            {
+                return Array.Empty<AbilityInjection>();
+            }
+
+            if (!node.IsSequence)
+            {
+                throw new FormatException("injections 必须是列表。");
+            }
+
+            var injections = new AbilityInjection[node.Items.Count];
+            for (int i = 0; i < node.Items.Count; i++)
+            {
+                injections[i] = new AbilityInjection
+                {
+                    Host = node.Items[i].Str("host") ?? "",
+                    AbilityId = node.Items[i].Str("ability") ?? ""
+                };
+            }
+
+            return injections;
         }
 
         private static string[] ReadIdList(YamlNode? node)

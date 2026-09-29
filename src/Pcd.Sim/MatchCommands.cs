@@ -371,7 +371,7 @@ namespace Pcd.Sim
                     }
                     else
                     {
-                        stdout.Write(catalog.NameOf(cell.Card.CardId));
+                        WriteCardFace(stdout, catalog, cell.Card.CardId);
                         stdout.Write(' ');
                         stdout.Write(cell.Card.CurrentPoints.ToString(CultureInfo.InvariantCulture));
                         if (cell.Polluted)
@@ -406,7 +406,7 @@ namespace Pcd.Sim
                         stdout.Write("、");
                     }
 
-                    stdout.Write(catalog.NameOf(view.Hand[i].CardId));
+                    WriteCardFace(stdout, catalog, view.Hand[i].CardId);
                     if (!view.Hand[i].IsSpell)
                     {
                         stdout.Write(' ');
@@ -422,6 +422,61 @@ namespace Pcd.Sim
             stdout.Write("  怪物弃牌 ");
             stdout.Write(view.MonsterDiscardCount.ToString(CultureInfo.InvariantCulture));
             stdout.Write("\n");
+        }
+
+        public static int Explain(string[] args, TextWriter stdout, TextWriter stderr)
+        {
+            ContentCatalog catalog = ContentCatalog.LoadRules();
+            if (args.Length > 2)
+            {
+                stderr.Write("explain 只接受一个卡牌标识。\n");
+                return 1;
+            }
+
+            if (args.Length == 2)
+            {
+                try
+                {
+                    catalog.RequireCard(args[1]);
+                }
+                catch (ContentException ex)
+                {
+                    stderr.Write(ex.Message);
+                    stderr.Write('\n');
+                    return 1;
+                }
+
+                WriteExplained(stdout, catalog, args[1]);
+                return 0;
+            }
+
+            for (int i = 0; i < catalog.Cards.Length; i++)
+            {
+                WriteExplained(stdout, catalog, catalog.Cards[i].Id);
+            }
+
+            return 0;
+        }
+
+        private static void WriteExplained(TextWriter stdout, ContentCatalog catalog, string cardId)
+        {
+            stdout.Write(catalog.NameOf(cardId));
+            stdout.Write('\n');
+            string text = catalog.TextOf(cardId);
+            stdout.Write(text.Length == 0 ? "无" : text);
+            stdout.Write('\n');
+        }
+
+        private static void WriteCardFace(TextWriter stdout, ContentCatalog catalog, string cardId)
+        {
+            stdout.Write(catalog.NameOf(cardId));
+            string text = catalog.TextOf(cardId);
+            if (text.Length > 0)
+            {
+                stdout.Write('（');
+                stdout.Write(text);
+                stdout.Write('）');
+            }
         }
 
         private static void WriteOptions(TextWriter stdout, ContentCatalog catalog, MatchView view, Decision decision)

@@ -43,6 +43,43 @@ namespace Pcd.Kernel.Tests
             Assert.That(unfinished, Is.EqualTo(0));
         }
 
+        [Test]
+        public void Random_matches_keep_the_starter_invariants()
+        {
+            const int games = 1000;
+            const int maxDecisions = 300;
+            ContentCatalog catalog = ContentCatalog.LoadRules();
+            int unfinished = 0;
+            for (int i = 0; i < games; i++)
+            {
+                var setup = new MatchSetup
+                {
+                    Seed = (ulong)(i + 1),
+                    MonsterId = catalog.Monsters[i % catalog.Monsters.Length].Id,
+                    BuildDeck = catalog.Decks[i % catalog.Decks.Length].Cards
+                };
+                MatchSession session = MatchSession.Start(catalog, setup);
+                var bot = new RandomDecider(new DeterministicRng(setup.Seed));
+                AdvanceResult step = session.Advance();
+                Check(step, session.View("omniscient"));
+                int decisions = 0;
+                while (step.Result == null)
+                {
+                    if (decisions >= maxDecisions)
+                    {
+                        unfinished++;
+                        break;
+                    }
+
+                    step = session.SubmitAndAdvance(bot.Choose(step.Pending!));
+                    decisions++;
+                    Check(step, session.View("omniscient"));
+                }
+            }
+
+            Assert.That(unfinished, Is.EqualTo(0));
+        }
+
         private static void Check(AdvanceResult step, MatchView view)
         {
             if (step.Result == null)

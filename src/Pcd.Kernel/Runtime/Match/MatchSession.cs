@@ -17,6 +17,13 @@ namespace Pcd.Kernel
             _state = state;
             _rules = new MatchRules(catalog, state);
             _rules.AfterEvent = OnEvent;
+            _rules.OnAbort = kept =>
+            {
+                if (_captureSeq > kept)
+                {
+                    _captured = null;
+                }
+            };
         }
 
         public ContentCatalog Catalog

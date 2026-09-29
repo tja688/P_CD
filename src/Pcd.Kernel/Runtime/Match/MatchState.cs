@@ -122,20 +122,43 @@ namespace Pcd.Kernel
 
     internal static class Points
     {
-        public static int Current(CardInstance card)
+        public static int Vital(CardInstance card)
         {
             if (card.IsSpell)
             {
                 return 0;
             }
 
-            int sum = card.BasePoints;
+            int sum = card.BasePoints + card.Continuous;
             for (int i = 0; i < card.Modifiers.Count; i++)
             {
                 sum += card.Modifiers[i].Amount;
             }
 
             return sum < 0 ? 0 : sum;
+        }
+
+        public static int Current(CardInstance card)
+        {
+            if (card.Suppressed)
+            {
+                return 0;
+            }
+
+            return Vital(card);
+        }
+
+        public static bool HasStatus(CardInstance card, string id)
+        {
+            for (int i = 0; i < card.Statuses.Count; i++)
+            {
+                if (card.Statuses[i].Id == id)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 
@@ -154,10 +177,30 @@ namespace Pcd.Kernel
     {
         public string Id = "";
         public Side Applier;
+        public int AppliedRound;
 
         public StatusMark Clone()
         {
-            return new StatusMark { Id = Id, Applier = Applier };
+            return new StatusMark { Id = Id, Applier = Applier, AppliedRound = AppliedRound };
+        }
+    }
+
+    internal sealed class GrantedAbility
+    {
+        public string AbilityId = "";
+        public int Timer;
+        public int TimerMax;
+        public bool Spent;
+
+        public GrantedAbility Clone()
+        {
+            return new GrantedAbility
+            {
+                AbilityId = AbilityId,
+                Timer = Timer,
+                TimerMax = TimerMax,
+                Spent = Spent
+            };
         }
     }
 
@@ -183,8 +226,14 @@ namespace Pcd.Kernel
         public int BasePoints;
         public string? CardBackId;
         public int Timer;
+        public int TimerMax;
+        public int Continuous;
+        public bool Suppressed;
+        public int Link;
+        public bool Activated;
         public List<PointModifier> Modifiers = new List<PointModifier>();
         public List<StatusMark> Statuses = new List<StatusMark>();
+        public List<GrantedAbility> Granted = new List<GrantedAbility>();
 
         public CardInstance Clone()
         {
@@ -198,7 +247,12 @@ namespace Pcd.Kernel
                 IsSpell = IsSpell,
                 BasePoints = BasePoints,
                 CardBackId = CardBackId,
-                Timer = Timer
+                Timer = Timer,
+                TimerMax = TimerMax,
+                Continuous = Continuous,
+                Suppressed = Suppressed,
+                Link = Link,
+                Activated = Activated
             };
             for (int i = 0; i < Modifiers.Count; i++)
             {
@@ -208,6 +262,11 @@ namespace Pcd.Kernel
             for (int i = 0; i < Statuses.Count; i++)
             {
                 copy.Statuses.Add(Statuses[i].Clone());
+            }
+
+            for (int i = 0; i < Granted.Count; i++)
+            {
+                copy.Granted.Add(Granted[i].Clone());
             }
 
             return copy;
@@ -288,6 +347,12 @@ namespace Pcd.Kernel
         public string SetupMonsterId = "";
         public List<string> BuildDeck = new List<string>();
         public Decision? Pending;
+        public bool Resolving;
+        public int ResolutionCursor;
+        public string ResolutionKind = "";
+        public string ResolutionOption = "";
+        public int CauseDecision;
+        public List<AbilityInjection> Injections = new List<AbilityInjection>();
 
         public SideState SideOf(Side side)
         {
@@ -341,7 +406,13 @@ namespace Pcd.Kernel
                 SetupSeed = SetupSeed,
                 SetupMonsterId = SetupMonsterId,
                 BuildDeck = new List<string>(BuildDeck),
-                Pending = null
+                Pending = null,
+                Resolving = Resolving,
+                ResolutionCursor = ResolutionCursor,
+                ResolutionKind = ResolutionKind,
+                ResolutionOption = ResolutionOption,
+                CauseDecision = CauseDecision,
+                Injections = CloneInjections(Injections)
             };
             for (int i = 0; i < 9; i++)
             {
@@ -351,6 +422,60 @@ namespace Pcd.Kernel
             for (int i = 0; i < Events.Count; i++)
             {
                 copy.Events.Add(Events[i].Clone());
+            }
+
+            return copy;
+        }
+
+        public void CopyFrom(MatchState other)
+        {
+            RngState = other.RngState;
+            Phase = other.Phase;
+            Waiting = other.Waiting;
+            Round = other.Round;
+            IntentCursor = other.IntentCursor;
+            RevealedIntent = other.RevealedIntent;
+            CommittedCell = other.CommittedCell;
+            CommittedTarget = other.CommittedTarget;
+            NextInstanceId = other.NextInstanceId;
+            NextEventSeq = other.NextEventSeq;
+            NextDecisionId = other.NextDecisionId;
+            PendingDecisionId = other.PendingDecisionId;
+            OpportunitiesPerTurn = other.OpportunitiesPerTurn;
+            RemainingOpportunities = other.RemainingOpportunities;
+            Winner = other.Winner;
+            EndReason = other.EndReason;
+            Polluted = other.Polluted;
+            Board = other.Board;
+            Player = other.Player;
+            Monster = other.Monster;
+            Intents = other.Intents;
+            MonsterId = other.MonsterId;
+            Events = other.Events;
+            Answers = other.Answers;
+            HasSetup = other.HasSetup;
+            SetupSeed = other.SetupSeed;
+            SetupMonsterId = other.SetupMonsterId;
+            BuildDeck = other.BuildDeck;
+            Pending = null;
+            Resolving = other.Resolving;
+            ResolutionCursor = other.ResolutionCursor;
+            ResolutionKind = other.ResolutionKind;
+            ResolutionOption = other.ResolutionOption;
+            CauseDecision = other.CauseDecision;
+            Injections = other.Injections;
+        }
+
+        private static List<AbilityInjection> CloneInjections(List<AbilityInjection> injections)
+        {
+            var copy = new List<AbilityInjection>(injections.Count);
+            for (int i = 0; i < injections.Count; i++)
+            {
+                copy.Add(new AbilityInjection
+                {
+                    Host = injections[i].Host,
+                    AbilityId = injections[i].AbilityId
+                });
             }
 
             return copy;
@@ -387,6 +512,7 @@ namespace Pcd.Kernel
                 state.Player.MatchDeck.Add(card);
             }
 
+            CopyInjections(catalog, state, setup.Injections);
             return state;
         }
 
@@ -469,7 +595,7 @@ namespace Pcd.Kernel
                 }
 
                 CardInstance card = CreateSpec(catalog, state, spec, Names.ParseSide(spec.Owner!));
-                if (!card.IsSpell && Points.Current(card) == 0)
+                if (!card.IsSpell && Points.Vital(card) == 0)
                 {
                     throw new ArgumentException("格位上的卡牌点数不能为 0。");
                 }
@@ -485,7 +611,37 @@ namespace Pcd.Kernel
             AddZone(catalog, state, position.PlayerVoid, state.Player.Void, Zone.Void, Side.Player);
             AddZone(catalog, state, position.MonsterDiscard, state.Monster.Discard, Zone.Discard, Side.Monster);
             AddZone(catalog, state, position.MonsterVoid, state.Monster.Void, Zone.Void, Side.Monster);
+            AddSetupResources(state.Player, position.PlayerResources);
+            AddSetupResources(state.Monster, position.MonsterResources);
+
+            CopyInjections(catalog, state, position.Injections);
             return state;
+        }
+
+        private static void AddSetupResources(SideState side, SetupResource[] resources)
+        {
+            for (int i = 0; i < resources.Length; i++)
+            {
+                if (resources[i].Amount == 0 || resources[i].Id.Length == 0)
+                {
+                    continue;
+                }
+
+                side.Resources.Add(new ResourceSlot { Id = resources[i].Id, Amount = resources[i].Amount });
+            }
+        }
+
+        private static void CopyInjections(ContentCatalog catalog, MatchState state, AbilityInjection[] injections)
+        {
+            for (int i = 0; i < injections.Length; i++)
+            {
+                catalog.RequireAbility(injections[i].AbilityId);
+                state.Injections.Add(new AbilityInjection
+                {
+                    Host = injections[i].Host,
+                    AbilityId = injections[i].AbilityId
+                });
+            }
         }
 
         private static void AddZone(
@@ -508,7 +664,7 @@ namespace Pcd.Kernel
         private static CardInstance CreateDefined(ContentCatalog catalog, MatchState state, string cardId, Side owner)
         {
             CardDefinition def = catalog.RequireCard(cardId);
-            return new CardInstance
+            var card = new CardInstance
             {
                 InstanceId = state.NextInstanceId++,
                 CardId = def.Id,
@@ -516,6 +672,21 @@ namespace Pcd.Kernel
                 IsSpell = def.IsSpell,
                 BasePoints = def.IsSpell ? 0 : def.Points
             };
+            ArmCountdown(def, card);
+            return card;
+        }
+
+        internal static void ArmCountdown(CardDefinition def, CardInstance card)
+        {
+            for (int i = 0; i < def.Abilities.Length; i++)
+            {
+                if (def.Abilities[i].Trigger == "countdown" && def.Abilities[i].Countdown > 0)
+                {
+                    card.TimerMax = def.Abilities[i].Countdown;
+                    card.Timer = def.Abilities[i].Countdown;
+                    return;
+                }
+            }
         }
 
         private static CardInstance CreateSpec(ContentCatalog catalog, MatchState state, PositionCard spec, Side owner)
@@ -529,6 +700,32 @@ namespace Pcd.Kernel
                 IsSpell = def.IsSpell,
                 CardBackId = spec.CardBackId
             };
+            ArmCountdown(def, card);
+            if (spec.Timer.HasValue)
+            {
+                card.Timer = spec.Timer.Value;
+            }
+
+            if (spec.TimerMax.HasValue)
+            {
+                card.TimerMax = spec.TimerMax.Value;
+            }
+
+            for (int i = 0; i < spec.Statuses.Length; i++)
+            {
+                int round = i < spec.StatusRounds.Length ? spec.StatusRounds[i] : 0;
+                card.Statuses.Add(new StatusMark
+                {
+                    Id = spec.Statuses[i],
+                    Applier = owner,
+                    AppliedRound = round
+                });
+                if (spec.Statuses[i] == "status.seal")
+                {
+                    card.Suppressed = true;
+                }
+            }
+
             if (def.IsSpell)
             {
                 card.BasePoints = 0;

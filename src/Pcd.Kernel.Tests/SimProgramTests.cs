@@ -34,6 +34,20 @@ namespace Pcd.Kernel.Tests
         }
 
         [Test]
+        public void Explain_prints_generated_card_text()
+        {
+            var stdout = new StringWriter();
+            var stderr = new StringWriter();
+
+            int code = SimProgram.Run(new[] { "explain", "card.c001" }, stdout, stderr);
+
+            Assert.That(code, Is.EqualTo(0));
+            Assert.That(stdout.ToString(), Does.Contain("弱点采样机"));
+            Assert.That(stdout.ToString(), Does.Contain("入场：选择一张敌方卡牌，添加解析标记。"));
+            Assert.That(stderr.ToString(), Is.Empty);
+        }
+
+        [Test]
         public void Unknown_command_prints_usage_and_fails()
         {
             var stdout = new StringWriter();

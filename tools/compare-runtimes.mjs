@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const requests = process.argv[2]
   ? [process.argv[2]]
-  : ['{"seed":1234567,"count":5}', '{"seed":42,"count":1}', '{"command":"playout","seed":7}']
+  : ['{"seed":1234567,"count":5}', '{"seed":42,"count":1}', '{"command":"playout","seed":7}', '{"command":"playout","seed":7,"content":"rules","max":80}']
 
 function run(command, args) {
   const result = spawnSync(command, args, {

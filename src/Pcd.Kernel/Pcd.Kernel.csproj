@@ -12,5 +12,8 @@
     <EmbeddedResource Include="..\..\content\blank\catalog.yaml">
       <LogicalName>Pcd.Kernel.BlankCatalog.yaml</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="..\..\content\rules\catalog.yaml">
+      <LogicalName>Pcd.Kernel.RulesCatalog.yaml</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

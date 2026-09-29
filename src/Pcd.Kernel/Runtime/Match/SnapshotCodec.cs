@@ -41,6 +41,16 @@ namespace Pcd.Kernel
             writer.Value(state.NextDecisionId);
             writer.Name("decisionId");
             writer.Value(state.PendingDecisionId);
+            writer.Name("resolving");
+            writer.Value(state.Resolving);
+            writer.Name("resolutionCursor");
+            writer.Value(state.ResolutionCursor);
+            writer.Name("resolutionKind");
+            writer.Value(state.ResolutionKind);
+            writer.Name("resolutionOption");
+            writer.Value(state.ResolutionOption);
+            writer.Name("causeDecision");
+            writer.Value(state.CauseDecision);
             writer.Name("opportunitiesPerTurn");
             writer.Value(state.OpportunitiesPerTurn);
             writer.Name("remainingOpportunities");
@@ -87,6 +97,19 @@ namespace Pcd.Kernel
             EventCodec.WriteArray(writer, state.Events);
             writer.Name("answers");
             WriteStrings(writer, state.Answers);
+            writer.Name("injections");
+            writer.BeginArray();
+            for (int i = 0; i < state.Injections.Count; i++)
+            {
+                writer.BeginObject();
+                writer.Name("host");
+                writer.Value(state.Injections[i].Host);
+                writer.Name("ability");
+                writer.Value(state.Injections[i].AbilityId);
+                writer.EndObject();
+            }
+
+            writer.EndArray();
             writer.Name("setup");
             if (!state.HasSetup)
             {
@@ -149,6 +172,11 @@ namespace Pcd.Kernel
                 NextEventSeq = root.Require("nextEvent").Int(),
                 NextDecisionId = root.Require("nextDecision").Int(),
                 PendingDecisionId = root.Require("decisionId").Int(),
+                Resolving = root.Require("resolving").Boolean(),
+                ResolutionCursor = root.Require("resolutionCursor").Int(),
+                ResolutionKind = root.Require("resolutionKind").String(),
+                ResolutionOption = root.Require("resolutionOption").String(),
+                CauseDecision = root.Require("causeDecision").Int(),
                 OpportunitiesPerTurn = root.Require("opportunitiesPerTurn").Int(),
                 RemainingOpportunities = root.Require("remainingOpportunities").Int(),
                 Winner = OptionalString(root, "winner"),
@@ -217,6 +245,22 @@ namespace Pcd.Kernel
             }
 
             state.Answers = ReadStrings(root.Require("answers"));
+            JsonValue injections = root.Require("injections");
+            if (!injections.IsArray || injections.Array == null)
+            {
+                throw new FormatException("注入能力必须是数组。");
+            }
+
+            for (int i = 0; i < injections.Array.Count; i++)
+            {
+                string abilityId = injections.Array[i].Require("ability").String();
+                catalog.RequireAbility(abilityId);
+                state.Injections.Add(new AbilityInjection
+                {
+                    Host = injections.Array[i].Require("host").String(),
+                    AbilityId = abilityId
+                });
+            }
             JsonValue? setup = root.Find("setup");
             if (setup != null && !setup.IsNull)
             {
@@ -335,6 +379,16 @@ namespace Pcd.Kernel
             writer.Value(card.CardBackId);
             writer.Name("timer");
             writer.Value(card.Timer);
+            writer.Name("timerMax");
+            writer.Value(card.TimerMax);
+            writer.Name("continuous");
+            writer.Value(card.Continuous);
+            writer.Name("suppressed");
+            writer.Value(card.Suppressed);
+            writer.Name("link");
+            writer.Value(card.Link);
+            writer.Name("activated");
+            writer.Value(card.Activated);
             writer.Name("modifiers");
             writer.BeginArray();
             for (int i = 0; i < card.Modifiers.Count; i++)
@@ -357,6 +411,25 @@ namespace Pcd.Kernel
                 writer.Value(card.Statuses[i].Id);
                 writer.Name("applier");
                 writer.Value(Names.SideName(card.Statuses[i].Applier));
+                writer.Name("round");
+                writer.Value(card.Statuses[i].AppliedRound);
+                writer.EndObject();
+            }
+
+            writer.EndArray();
+            writer.Name("granted");
+            writer.BeginArray();
+            for (int i = 0; i < card.Granted.Count; i++)
+            {
+                writer.BeginObject();
+                writer.Name("ability");
+                writer.Value(card.Granted[i].AbilityId);
+                writer.Name("timer");
+                writer.Value(card.Granted[i].Timer);
+                writer.Name("timerMax");
+                writer.Value(card.Granted[i].TimerMax);
+                writer.Name("spent");
+                writer.Value(card.Granted[i].Spent);
                 writer.EndObject();
             }
 
@@ -377,7 +450,12 @@ namespace Pcd.Kernel
                 IsSpell = node.Require("spell").Boolean(),
                 BasePoints = node.Require("base").Int(),
                 CardBackId = OptionalString(node, "back"),
-                Timer = node.Require("timer").Int()
+                Timer = node.Require("timer").Int(),
+                TimerMax = node.Require("timerMax").Int(),
+                Continuous = node.Require("continuous").Int(),
+                Suppressed = node.Require("suppressed").Boolean(),
+                Link = node.Require("link").Int(),
+                Activated = node.Require("activated").Boolean()
             };
             JsonValue? cell = node.Find("cell");
             card.Cell = cell == null || cell.IsNull ? 0 : cell.Int();
@@ -407,7 +485,27 @@ namespace Pcd.Kernel
                 card.Statuses.Add(new StatusMark
                 {
                     Id = statuses.Array[i].Require("id").String(),
-                    Applier = Names.ParseSide(statuses.Array[i].Require("applier").String())
+                    Applier = Names.ParseSide(statuses.Array[i].Require("applier").String()),
+                    AppliedRound = statuses.Array[i].Require("round").Int()
+                });
+            }
+
+            JsonValue granted = node.Require("granted");
+            if (!granted.IsArray || granted.Array == null)
+            {
+                throw new FormatException("授予的能力必须是数组。");
+            }
+
+            for (int i = 0; i < granted.Array.Count; i++)
+            {
+                string abilityId = granted.Array[i].Require("ability").String();
+                catalog.RequireAbility(abilityId);
+                card.Granted.Add(new GrantedAbility
+                {
+                    AbilityId = abilityId,
+                    Timer = granted.Array[i].Require("timer").Int(),
+                    TimerMax = granted.Array[i].Require("timerMax").Int(),
+                    Spent = granted.Array[i].Require("spent").Boolean()
                 });
             }
 

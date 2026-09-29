@@ -8,16 +8,20 @@ namespace Pcd.Kernel
     /// Blank-card rules. Turn order follows the design doc: player turn start, reveal intent,
     /// draw, player action, player turn end, monster turn start, monster action, monster turn end.
     /// </summary>
-    internal sealed class MatchRules
+    internal sealed partial class MatchRules
     {
         private const int OpeningHandSize = 4;
         private const int HandLimit = 10;
 
         private readonly ContentCatalog _catalog;
         private readonly MatchState _state;
-        private readonly DeterministicRng _rng;
+        private DeterministicRng _rng;
         private int _resolvingDecision;
         private string? _causeOverride;
+        private readonly List<PendingAbility> _queue = new List<PendingAbility>();
+        private readonly List<PendingAbility> _held = new List<PendingAbility>();
+        private bool _holding;
+        private bool _draining;
 
         public MatchRules(ContentCatalog catalog, MatchState state)
         {
@@ -27,6 +31,7 @@ namespace Pcd.Kernel
         }
 
         public Action<int>? AfterEvent { get; set; }
+        public Action<int>? OnAbort { get; set; }
 
         public void Run()
         {
@@ -85,21 +90,38 @@ namespace Pcd.Kernel
                 throw new ArgumentException("不是合法选项：" + optionId);
             }
 
+            bool effect = _state.Resolving;
+            string replayKind = _state.ResolutionKind;
+            string replayOption = _state.ResolutionOption;
             _state.Answers.Add(optionId);
             _state.Waiting = false;
             _resolvingDecision = _state.PendingDecisionId;
             _state.Pending = null;
-            if (_state.Phase == MatchPhase.PlayerAction)
+            if (effect)
             {
-                ResolvePlayer(optionId);
-            }
-            else if (_state.Phase == MatchPhase.MonsterAction)
-            {
-                ResolveMonster(optionId);
+                Execute(replayKind, replayOption, () => Replay(replayKind, replayOption));
             }
             else
             {
-                throw new InvalidOperationException("这个阶段不能回答决策。");
+                if (_state.Phase == MatchPhase.PlayerAction)
+                {
+                    _state.CauseDecision = _resolvingDecision;
+                    Execute("play", optionId, () => ResolvePlayer(optionId));
+                }
+                else if (_state.Phase == MatchPhase.MonsterAction)
+                {
+                    _state.CauseDecision = _resolvingDecision;
+                    Execute("monster", optionId, () => ResolveMonster(optionId));
+                }
+                else
+                {
+                    throw new InvalidOperationException("这个阶段不能回答决策。");
+                }
+
+                if (!_state.Waiting)
+                {
+                    _state.CauseDecision = 0;
+                }
             }
 
             _resolvingDecision = 0;
@@ -123,6 +145,17 @@ namespace Pcd.Kernel
         {
             if (!_state.Waiting)
             {
+                return;
+            }
+
+            if (_state.Resolving)
+            {
+                string kind = _state.ResolutionKind;
+                string option = _state.ResolutionOption;
+                _state.Waiting = false;
+                _state.Pending = null;
+                _rebuild = true;
+                Execute(kind, option, () => Replay(kind, option));
                 return;
             }
 
@@ -164,6 +197,7 @@ namespace Pcd.Kernel
                 MonsterDiscardCount = _state.Monster.Discard.Count,
                 Winner = _state.Winner,
                 EndReason = _state.EndReason,
+                Pools = PoolsOf(),
                 InstanceHighWater = _state.NextInstanceId - 1,
                 Cells = new ViewCell[9]
             };
@@ -210,6 +244,11 @@ namespace Pcd.Kernel
 
         private void LevelStart()
         {
+            Execute("level", "", LevelStartCore);
+        }
+
+        private void LevelStartCore()
+        {
             Shuffle(_state.Player.MatchDeck);
             MonsterDefinition monster = _catalog.RequireMonster(_state.MonsterId);
             for (int i = 0; i < monster.Starting.Length; i++)
@@ -223,16 +262,31 @@ namespace Pcd.Kernel
                 }
 
                 Enter(card, cell, "setup");
+                NoticeEnter(card, false);
             }
 
+            DrainQueue();
+            EnqueueTrigger("level-start", null, 0, 0);
+            DrainQueue();
             DrawOpening();
             _state.Phase = MatchPhase.PlayerTurnStart;
         }
 
         private void PlayerTurnStart()
         {
+            Execute("player-turn", "", PlayerTurnStartCore);
+        }
+
+        private void PlayerTurnStartCore()
+        {
             _state.Round++;
             EmitTurn(EventTypes.TurnStarted, Side.Player, _state.Round);
+            ResolveTurnLayers(Side.Player);
+            if (_state.Phase == MatchPhase.Finished)
+            {
+                return;
+            }
+
             if (!PlayerHasUsableCards())
             {
                 ResolveResource();
@@ -294,13 +348,34 @@ namespace Pcd.Kernel
 
         private void PlayerTurnEnd()
         {
+            Execute("player-end", "", PlayerTurnEndCore);
+        }
+
+        private void PlayerTurnEndCore()
+        {
             EmitTurn(EventTypes.TurnEnded, Side.Player, null);
-            _state.Phase = MatchPhase.MonsterTurnStart;
+            EnqueueTurn("turn-end", Side.Player);
+            DrainQueue();
+            if (_state.Phase != MatchPhase.Finished)
+            {
+                _state.Phase = MatchPhase.MonsterTurnStart;
+            }
         }
 
         private void MonsterTurnStart()
         {
+            Execute("monster-turn", "", MonsterTurnStartCore);
+        }
+
+        private void MonsterTurnStartCore()
+        {
             EmitTurn(EventTypes.TurnStarted, Side.Monster, _state.Round);
+            ResolveTurnLayers(Side.Monster);
+            if (_state.Phase == MatchPhase.Finished)
+            {
+                return;
+            }
+
             if (OccupiedCount() == 9)
             {
                 ResolveFullBoard(Side.Monster);
@@ -320,7 +395,7 @@ namespace Pcd.Kernel
             }
 
             CardDefinition def = _catalog.RequireCard(_state.RevealedIntent!);
-            if (!def.IsSpell && LegalCells(Side.Monster, def.Points).Count == 0)
+            if (!def.IsSpell && LegalCells(Side.Monster, def.Points, ReadsCoverAlly(def)).Count == 0)
             {
                 Emit(new GameEvent
                 {
@@ -340,8 +415,18 @@ namespace Pcd.Kernel
 
         private void MonsterTurnEnd()
         {
+            Execute("monster-end", "", MonsterTurnEndCore);
+        }
+
+        private void MonsterTurnEndCore()
+        {
             EmitTurn(EventTypes.TurnEnded, Side.Monster, null);
-            _state.Phase = MatchPhase.PlayerTurnStart;
+            EnqueueTurn("turn-end", Side.Monster);
+            DrainQueue();
+            if (_state.Phase != MatchPhase.Finished)
+            {
+                _state.Phase = MatchPhase.PlayerTurnStart;
+            }
         }
 
         private void ResolvePlayer(string optionId)
@@ -352,18 +437,34 @@ namespace Pcd.Kernel
                 return;
             }
 
+            if (optionId.StartsWith("activate:", StringComparison.Ordinal))
+            {
+                ResolveActivated(ParseInt(optionId.Substring(9)));
+                _state.Phase = MatchPhase.PlayerAction;
+                return;
+            }
+
+            bool swift;
             if (optionId.StartsWith("cast:", StringComparison.Ordinal))
             {
                 int instance = ParseInt(optionId.Substring(5));
-                ResolveSpell(TakeHand(instance));
+                CardInstance card = TakeHand(instance);
+                swift = IsSwift(card);
+                ResolveSpell(card);
             }
             else
             {
                 ParsePlay(optionId, out int instance, out int cell);
-                ResolveUnit(TakeHand(instance), cell);
+                CardInstance card = TakeHand(instance);
+                swift = IsSwift(card);
+                ResolveUnit(card, cell);
             }
 
-            _state.RemainingOpportunities--;
+            if (!swift)
+            {
+                _state.RemainingOpportunities--;
+            }
+
             _state.Phase = _state.RemainingOpportunities <= 0
                 ? MatchPhase.PlayerTurnEnd
                 : MatchPhase.PlayerAction;
@@ -411,11 +512,12 @@ namespace Pcd.Kernel
             if (occupier == null)
             {
                 Enter(card, cell, "play");
-                ApplyPollution(card, cell);
+                FinishPlay(card, cell);
                 return;
             }
 
-            if (occupier.Owner == card.Owner)
+            bool ally = occupier.Owner == card.Owner;
+            if (ally && !IsCoverAlly(card))
             {
                 throw new InvalidOperationException("不能覆盖己方卡牌。");
             }
@@ -424,9 +526,13 @@ namespace Pcd.Kernel
             if (attack > defense)
             {
                 RemoveFromBoard(occupier, "cover");
-                AddModifier(card, "cover", -defense);
+                if (defense != 0)
+                {
+                    AddModifier(card, "cover", -defense);
+                }
+
                 Enter(card, cell, "play");
-                ApplyPollution(card, cell);
+                FinishPlay(card, cell);
                 return;
             }
 
@@ -440,6 +546,7 @@ namespace Pcd.Kernel
                     RemoveFromBoard(card, "tie-cover");
                 }
 
+                FinishPlay(card, cell);
                 return;
             }
 
@@ -456,7 +563,11 @@ namespace Pcd.Kernel
                 Owner = Names.SideName(card.Owner),
                 Points = 0
             });
+            ResolveImmediate(card, "enter");
+            ResolveImmediate(card, "cast");
             SendToDiscard(card, "spell", null, 0, EventTypes.CardDiscarded);
+            EnqueueSpellWatchers(card);
+            DrainQueue();
         }
 
         private void ApplyPollution(CardInstance card, int cell)
@@ -474,18 +585,22 @@ namespace Pcd.Kernel
             int before = Points.Current(card);
             card.Modifiers.Add(new PointModifier { Source = source, Amount = amount });
             int after = Points.Current(card);
-            Emit(new GameEvent
+            if (before != after)
             {
-                Type = EventTypes.PointsChanged,
-                Card = card.CardId,
-                Instance = card.InstanceId,
-                Owner = Names.SideName(card.Owner),
-                Source = source,
-                Before = before,
-                After = after,
-                Points = after
-            });
-            if (after == 0 && card.Zone == Zone.Board)
+                Emit(new GameEvent
+                {
+                    Type = EventTypes.PointsChanged,
+                    Card = card.CardId,
+                    Instance = card.InstanceId,
+                    Owner = Names.SideName(card.Owner),
+                    Source = source,
+                    Before = before,
+                    After = after,
+                    Points = after
+                });
+            }
+
+            if (Points.Vital(card) == 0 && card.Zone == Zone.Board)
             {
                 RemoveFromBoard(card, "points-zero");
             }
@@ -529,7 +644,8 @@ namespace Pcd.Kernel
 
             card.Zone = Zone.None;
             card.Cell = 0;
-            SendToDiscard(card, reason, cell, points, EventTypes.CardRemoved);
+            bool cover = reason == "cover" || reason == "tie-cover";
+            Depart(card, reason, cell, points, cover);
         }
 
         private void SendToDiscard(CardInstance card, string reason, int? cell, int points, string type)
@@ -555,7 +671,12 @@ namespace Pcd.Kernel
         {
             card.Modifiers.Clear();
             card.Statuses.Clear();
-            card.Timer = 0;
+            card.Granted.Clear();
+            card.Continuous = 0;
+            card.Suppressed = false;
+            card.Link = 0;
+            card.Activated = false;
+            card.Timer = card.TimerMax;
         }
 
         private void ResolveResource()
@@ -734,7 +855,7 @@ namespace Pcd.Kernel
                     continue;
                 }
 
-                List<int> cells = LegalCells(card.Owner, Points.Current(card));
+                List<int> cells = LegalCells(card.Owner, Points.Current(card), IsCoverAlly(card));
                 for (int c = 0; c < cells.Count; c++)
                 {
                     options.Add(new Option
@@ -748,6 +869,7 @@ namespace Pcd.Kernel
                 }
             }
 
+            AppendActivated(options);
             options.Add(new Option { Id = "end-turn", Kind = "end-turn" });
             return options.ToArray();
         }
@@ -763,7 +885,7 @@ namespace Pcd.Kernel
                 };
             }
 
-            List<int> cells = LegalCells(Side.Monster, def.Points);
+            List<int> cells = LegalCells(Side.Monster, def.Points, ReadsCoverAlly(def));
             var options = new Option[cells.Count];
             for (int i = 0; i < cells.Count; i++)
             {
@@ -794,7 +916,7 @@ namespace Pcd.Kernel
             };
         }
 
-        private List<int> LegalCells(Side attacker, int attackPoints)
+        private List<int> LegalCells(Side attacker, int attackPoints, bool coverAlly)
         {
             var cells = new List<int>();
             for (int cell = 1; cell <= 9; cell++)
@@ -806,7 +928,7 @@ namespace Pcd.Kernel
                     continue;
                 }
 
-                if (occupier.Owner == attacker)
+                if (occupier.Owner == attacker && !coverAlly)
                 {
                     continue;
                 }
@@ -828,7 +950,7 @@ namespace Pcd.Kernel
                 return true;
             }
 
-            return LegalCells(Side.Monster, def.Points).Count > 0;
+            return LegalCells(Side.Monster, def.Points, ReadsCoverAlly(def)).Count > 0;
         }
 
         private bool PlayerHasUsableCards()
@@ -981,12 +1103,13 @@ namespace Pcd.Kernel
             }
 
             string phase = Names.PhaseName(_state.Phase);
-            if (_resolvingDecision > 0)
+            int decision = _state.CauseDecision > 0 ? _state.CauseDecision : _resolvingDecision;
+            if (decision > 0)
             {
                 return new[]
                 {
                     phase,
-                    "decision:" + _resolvingDecision.ToString(CultureInfo.InvariantCulture)
+                    "decision:" + decision.ToString(CultureInfo.InvariantCulture)
                 };
             }
 
@@ -1057,7 +1180,9 @@ namespace Pcd.Kernel
                 CurrentPoints = Points.Current(card),
                 CardBackId = card.CardBackId,
                 ModifierCount = card.Modifiers.Count,
-                IsSpell = card.IsSpell
+                IsSpell = card.IsSpell,
+                Timer = card.Timer,
+                Statuses = StatusIds(card)
             };
         }
 

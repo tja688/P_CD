@@ -82,7 +82,7 @@ namespace Pcd.Kernel.Tests
                 Assert.That(text, Does.Contain("入场"));
                 Assert.That(text, Does.Contain("\"type\":\"card-entered\""));
                 string snapshot = File.ReadAllText(snapshotPath);
-                Assert.That(snapshot, Does.Contain("\"snapshot\":1"));
+                Assert.That(snapshot, Does.Contain("\"snapshot\":2"));
                 Assert.That(snapshot, Does.Contain("\"nextEvent\":2"));
             }
             finally

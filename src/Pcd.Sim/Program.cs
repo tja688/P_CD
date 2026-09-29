@@ -12,7 +12,8 @@ namespace Pcd.Sim
             "  pcd-sim version\n" +
             "  pcd-sim play [--seed N] [--auto] [--max N] [--replay-out FILE]\n" +
             "  pcd-sim batch --games N [--seed N] [--max N]\n" +
-            "  pcd-sim replay --file FILE [--snapshot-at N --snapshot-out FILE]\n";
+            "  pcd-sim replay --file FILE [--snapshot-at N --snapshot-out FILE]\n" +
+            "  pcd-sim explain [card-id]\n";
 
         public static int Main(string[] args)
         {
@@ -35,6 +36,11 @@ namespace Pcd.Sim
             }
 
             string command = args[0];
+            if (command == "explain")
+            {
+                return MatchCommands.Explain(args, stdout, stderr);
+            }
+
             var options = new SimOptions();
             if (!options.Parse(args, stderr))
             {

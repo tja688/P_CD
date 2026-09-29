@@ -10,8 +10,8 @@ namespace Pcd.Kernel.Tests
     {
         public static IEnumerable<TestCaseData> Files()
         {
-            string dir = Path.Combine(RepoRoot(), "scenarios", "rules");
-            foreach (string file in Directory.GetFiles(dir, "*.yaml").OrderBy(path => path))
+            string rules = Path.Combine(RepoRoot(), "scenarios", "rules");
+            foreach (string file in Directory.GetFiles(rules, "*.yaml").OrderBy(path => path))
             {
                 yield return new TestCaseData(file).SetName(Path.GetFileNameWithoutExtension(file));
             }
@@ -19,6 +19,26 @@ namespace Pcd.Kernel.Tests
 
         [TestCaseSource(nameof(Files))]
         public void Rules_scenario(string file)
+        {
+            ScenarioRunner.Run(file);
+        }
+
+        public static IEnumerable<TestCaseData> CardFiles()
+        {
+            string cards = Path.Combine(RepoRoot(), "scenarios", "cards");
+            if (!Directory.Exists(cards))
+            {
+                yield break;
+            }
+
+            foreach (string file in Directory.GetFiles(cards, "*.yaml").OrderBy(path => path))
+            {
+                yield return new TestCaseData(file).SetName(Path.GetFileNameWithoutExtension(file));
+            }
+        }
+
+        [TestCaseSource(nameof(CardFiles))]
+        public void Content_scenario(string file)
         {
             ScenarioRunner.Run(file);
         }

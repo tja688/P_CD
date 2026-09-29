@@ -5,7 +5,7 @@ namespace Pcd.Kernel
     public static class RuleProtocol
     {
         public const int Version = 1;
-        public const int SnapshotVersion = 1;
+        public const int SnapshotVersion = 2;
     }
 
     public static class EventTypes
@@ -123,6 +123,8 @@ namespace Pcd.Kernel
         public string? CardBackId { get; internal set; }
         public int ModifierCount { get; internal set; }
         public bool IsSpell { get; internal set; }
+        public int Timer { get; internal set; }
+        public string[] Statuses { get; internal set; } = Array.Empty<string>();
     }
 
     public sealed class ViewCell
@@ -130,6 +132,19 @@ namespace Pcd.Kernel
         public int Cell { get; internal set; }
         public bool Polluted { get; internal set; }
         public ViewCard? Card { get; internal set; }
+    }
+
+    public sealed class ViewPool
+    {
+        public string Owner { get; internal set; } = "";
+        public string Id { get; internal set; } = "";
+        public int Amount { get; internal set; }
+    }
+
+    public sealed class SetupResource
+    {
+        public string Id { get; set; } = "";
+        public int Amount { get; set; }
     }
 
     public sealed class MatchView
@@ -148,6 +163,7 @@ namespace Pcd.Kernel
         public int MatchDeckCount { get; internal set; }
         public int PlayerDiscardCount { get; internal set; }
         public int MonsterDiscardCount { get; internal set; }
+        public ViewPool[] Pools { get; internal set; } = Array.Empty<ViewPool>();
         public string? Winner { get; internal set; }
         public string? EndReason { get; internal set; }
         public ViewCell[] Cells { get; internal set; } = Array.Empty<ViewCell>();
@@ -176,6 +192,10 @@ namespace Pcd.Kernel
         public int? CurrentPoints { get; set; }
         public string? CardBackId { get; set; }
         public PointChange[] Modifiers { get; set; } = Array.Empty<PointChange>();
+        public string[] Statuses { get; set; } = Array.Empty<string>();
+        public int[] StatusRounds { get; set; } = Array.Empty<int>();
+        public int? Timer { get; set; }
+        public int? TimerMax { get; set; }
     }
 
     public sealed class MatchSetup
@@ -184,6 +204,7 @@ namespace Pcd.Kernel
         public string MonsterId { get; set; } = "";
         public string[] BuildDeck { get; set; } = Array.Empty<string>();
         public int OpportunitiesPerTurn { get; set; } = 1;
+        public AbilityInjection[] Injections { get; set; } = Array.Empty<AbilityInjection>();
     }
 
     public sealed class MatchPosition
@@ -203,5 +224,8 @@ namespace Pcd.Kernel
         public PositionCard[] PlayerVoid { get; set; } = Array.Empty<PositionCard>();
         public PositionCard[] MonsterDiscard { get; set; } = Array.Empty<PositionCard>();
         public PositionCard[] MonsterVoid { get; set; } = Array.Empty<PositionCard>();
+        public SetupResource[] PlayerResources { get; set; } = Array.Empty<SetupResource>();
+        public SetupResource[] MonsterResources { get; set; } = Array.Empty<SetupResource>();
+        public AbilityInjection[] Injections { get; set; } = Array.Empty<AbilityInjection>();
     }
 }

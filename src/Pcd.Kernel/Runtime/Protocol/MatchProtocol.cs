@@ -41,7 +41,7 @@ namespace Pcd.Kernel
         {
             ulong seed = root.Require("seed").ULong();
             int max = ReadMax(root, 400);
-            PlayoutResult result = PlaySeed(seed, max);
+            PlayoutResult result = PlayRequested(root, seed, max);
             var writer = new JsonWriter();
             writer.BeginObject();
             writer.Name("version");
@@ -103,7 +103,7 @@ namespace Pcd.Kernel
 
         private static string Record(JsonValue root)
         {
-            PlayoutResult result = PlaySeed(root.Require("seed").ULong(), ReadMax(root, 400));
+            PlayoutResult result = PlayRequested(root, root.Require("seed").ULong(), ReadMax(root, 400));
             var writer = new JsonWriter();
             writer.BeginObject();
             writer.Name("protocol");
@@ -337,10 +337,21 @@ namespace Pcd.Kernel
 
         private static PlayoutResult PlaySeed(ulong seed, int maxDecisions = 400)
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            return PlayCatalog(ContentCatalog.LoadBlank(), seed, maxDecisions);
+        }
+
+        private static PlayoutResult PlayRequested(JsonValue root, ulong seed, int maxDecisions)
+        {
+            string? content = ReadString(root, "content");
+            ContentCatalog catalog = content == "rules" ? ContentCatalog.LoadRules() : ContentCatalog.LoadBlank();
+            return PlayCatalog(catalog, seed, maxDecisions);
+        }
+
+        private static PlayoutResult PlayCatalog(ContentCatalog catalog, ulong seed, int maxDecisions)
+        {
             if (catalog.DefaultMonster == null)
             {
-                throw new InvalidOperationException("白板内容没有默认怪物。");
+                throw new InvalidOperationException("内容没有默认怪物。");
             }
 
             var setup = new MatchSetup
