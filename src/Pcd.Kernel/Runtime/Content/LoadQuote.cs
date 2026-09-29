@@ -32,6 +32,7 @@ namespace Pcd.Kernel
             }
 
             var formulas = new List<string>();
+            var uncovered = new List<string>();
             var cards = new List<CardDefinition>();
             for (int i = 0; i < catalog.Cards.Length; i++)
             {
@@ -46,6 +47,12 @@ namespace Pcd.Kernel
             {
                 CardDefinition card = cards[i];
                 Priced priced = Price(catalog, card);
+                if (priced.Unpriced)
+                {
+                    uncovered.Add(Line(card, "公式还没有覆盖这张卡的全部效果"));
+                    continue;
+                }
+
                 if (card.Load >= priced.Low && card.Load <= priced.High)
                 {
                     continue;
@@ -65,6 +72,8 @@ namespace Pcd.Kernel
             AppendLines(builder, rarities);
             builder.Append("\n## 公式报价与卡表不一致\n\n");
             AppendLines(builder, formulas);
+            builder.Append("\n## 公式尚未覆盖\n\n");
+            AppendLines(builder, uncovered);
             return builder.ToString();
         }
 
@@ -119,16 +128,16 @@ namespace Pcd.Kernel
             int sum = Body(card.IsSpell ? 0 : card.Points) * 2 + parts.Effect - parts.Discount;
             if (card.Rarity == "gold")
             {
-                return new Priced(QuoteOf(sum - 4), QuoteOf(sum - 2));
+                return new Priced(QuoteOf(sum - 4), QuoteOf(sum - 2), parts.Unpriced);
             }
 
             if (card.Rarity == "blue" && parts.Conditional)
             {
-                return new Priced(QuoteOf(sum - 2), QuoteOf(sum));
+                return new Priced(QuoteOf(sum - 2), QuoteOf(sum), parts.Unpriced);
             }
 
             int quote = QuoteOf(sum);
-            return new Priced(quote, quote);
+            return new Priced(quote, quote, parts.Unpriced);
         }
 
         private static void PriceAbility(ContentCatalog catalog, CardDefinition card, AbilityDefinition ability, Parts parts)
@@ -209,7 +218,7 @@ namespace Pcd.Kernel
                     {
                         parts.Effect += loss;
                     }
-                    else
+                    else if (action.Target == "self")
                     {
                         parts.Discount += loss;
                     }
@@ -294,9 +303,15 @@ namespace Pcd.Kernel
                 return;
             }
 
-            if (action.Kind == "remove" || action.Kind == "transform")
+            if (action.Kind == "remove")
             {
                 parts.Effect += 12 * scale;
+                return;
+            }
+
+            if (action.Kind == "transform")
+            {
+                parts.Unpriced = true;
                 return;
             }
 
@@ -338,6 +353,11 @@ namespace Pcd.Kernel
                 var absent = new Parts();
                 PriceActions(catalog, card, ability, action.Present, scale, present);
                 PriceActions(catalog, card, ability, action.Absent, scale, absent);
+                if (present.Unpriced || absent.Unpriced)
+                {
+                    parts.Unpriced = true;
+                }
+
                 if (present.Effect - present.Discount >= absent.Effect - absent.Discount)
                 {
                     parts.Effect += present.Effect;
@@ -463,18 +483,21 @@ namespace Pcd.Kernel
             public int Effect;
             public int Discount;
             public bool Conditional;
+            public bool Unpriced;
         }
 
         private readonly struct Priced
         {
-            public Priced(int low, int high)
+            public Priced(int low, int high, bool unpriced)
             {
                 Low = low;
                 High = high < low ? low : high;
+                Unpriced = unpriced;
             }
 
             public int Low { get; }
             public int High { get; }
+            public bool Unpriced { get; }
         }
 
         private readonly struct Sample

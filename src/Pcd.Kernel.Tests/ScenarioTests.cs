@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
+using Pcd.Kernel;
 
 namespace Pcd.Kernel.Tests
 {
@@ -41,6 +42,33 @@ namespace Pcd.Kernel.Tests
         public void Content_scenario(string file)
         {
             ScenarioRunner.Run(file);
+        }
+
+        [Test]
+        public void Every_collectible_card_has_a_content_scenario()
+        {
+            ContentCatalog catalog = ContentCatalog.LoadRules();
+            string all = "";
+            foreach (string file in Directory.GetFiles(Path.Combine(RepoRoot(), "scenarios", "cards"), "*.yaml"))
+            {
+                all += File.ReadAllText(file);
+            }
+
+            for (int i = 0; i < catalog.Cards.Length; i++)
+            {
+                if (catalog.Cards[i].Rarity.Length == 0)
+                {
+                    continue;
+                }
+
+                Assert.That(catalog.Cards[i].School.Length, Is.GreaterThan(0), catalog.Cards[i].Name);
+                Assert.That(all, Does.Contain(catalog.Cards[i].Id), catalog.Cards[i].Name);
+            }
+
+            for (int i = 0; i < catalog.Backs.Length; i++)
+            {
+                Assert.That(all, Does.Contain(catalog.Backs[i].Id), catalog.Backs[i].Name);
+            }
         }
 
         private static string RepoRoot()
