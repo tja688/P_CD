@@ -278,7 +278,7 @@ namespace Pcd.Sim
             {
                 Seed = seed,
                 MonsterId = catalog.DefaultMonster,
-                Deck = catalog.DefaultDeck,
+                BuildDeck = catalog.DefaultDeck,
                 OpportunitiesPerTurn = 1
             };
         }
@@ -416,7 +416,7 @@ namespace Pcd.Sim
             }
 
             stdout.Write("\n牌组 ");
-            stdout.Write(view.DeckCount.ToString(CultureInfo.InvariantCulture));
+            stdout.Write(view.MatchDeckCount.ToString(CultureInfo.InvariantCulture));
             stdout.Write("  玩家弃牌 ");
             stdout.Write(view.PlayerDiscardCount.ToString(CultureInfo.InvariantCulture));
             stdout.Write("  怪物弃牌 ");

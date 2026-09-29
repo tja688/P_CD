@@ -145,14 +145,14 @@ namespace Pcd.Kernel
         public int PlayerOccupancy { get; internal set; }
         public int MonsterOccupancy { get; internal set; }
         public int HandCount { get; internal set; }
-        public int DeckCount { get; internal set; }
+        public int MatchDeckCount { get; internal set; }
         public int PlayerDiscardCount { get; internal set; }
         public int MonsterDiscardCount { get; internal set; }
         public string? Winner { get; internal set; }
         public string? EndReason { get; internal set; }
         public ViewCell[] Cells { get; internal set; } = Array.Empty<ViewCell>();
         public ViewCard[] Hand { get; internal set; } = Array.Empty<ViewCard>();
-        public ViewCard[] Deck { get; internal set; } = Array.Empty<ViewCard>();
+        public ViewCard[] MatchDeck { get; internal set; } = Array.Empty<ViewCard>();
         public ViewCard[] PlayerDiscard { get; internal set; } = Array.Empty<ViewCard>();
         public ViewCard[] MonsterDiscard { get; internal set; } = Array.Empty<ViewCard>();
         public ViewCard[] PlayerVoid { get; internal set; } = Array.Empty<ViewCard>();
@@ -182,7 +182,7 @@ namespace Pcd.Kernel
     {
         public ulong Seed { get; set; } = 1;
         public string MonsterId { get; set; } = "";
-        public string[] Deck { get; set; } = Array.Empty<string>();
+        public string[] BuildDeck { get; set; } = Array.Empty<string>();
         public int OpportunitiesPerTurn { get; set; } = 1;
     }
 
@@ -197,7 +197,7 @@ namespace Pcd.Kernel
         public int Opportunities { get; set; } = 1;
         public int[] PollutedCells { get; set; } = Array.Empty<int>();
         public PositionCard[] Board { get; set; } = Array.Empty<PositionCard>();
-        public PositionCard[] PlayerDeck { get; set; } = Array.Empty<PositionCard>();
+        public PositionCard[] PlayerMatchDeck { get; set; } = Array.Empty<PositionCard>();
         public PositionCard[] PlayerHand { get; set; } = Array.Empty<PositionCard>();
         public PositionCard[] PlayerDiscard { get; set; } = Array.Empty<PositionCard>();
         public PositionCard[] PlayerVoid { get; set; } = Array.Empty<PositionCard>();

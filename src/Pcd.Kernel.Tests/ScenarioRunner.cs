@@ -96,7 +96,7 @@ namespace Pcd.Kernel.Tests
             {
                 Seed = ReadULong(doc, "seed", 1),
                 MonsterId = monsterId,
-                Deck = ReadIdList(doc.Get("deck")),
+                BuildDeck = ReadIdList(doc.Get("deck")),
                 OpportunitiesPerTurn = doc.Has("opportunitiesPerTurn") ? doc.Int("opportunitiesPerTurn") : 1
             };
         }
@@ -118,7 +118,7 @@ namespace Pcd.Kernel.Tests
             YamlNode? player = position.Get("player");
             if (player != null)
             {
-                built.PlayerDeck = ReadCards(player.Get("deck"));
+                built.PlayerMatchDeck = ReadCards(player.Get("deck"));
                 built.PlayerHand = ReadCards(player.Get("hand"));
                 built.PlayerDiscard = ReadCards(player.Get("discard"));
                 built.PlayerVoid = ReadCards(player.Get("void"));
@@ -169,7 +169,7 @@ namespace Pcd.Kernel.Tests
 
             if (expect.Has("deckCount"))
             {
-                AssertEqual(path, label, "deckCount", expect.Int("deckCount"), view.DeckCount);
+                AssertEqual(path, label, "deckCount", expect.Int("deckCount"), view.MatchDeckCount);
             }
 
             if (expect.Has("opportunities"))

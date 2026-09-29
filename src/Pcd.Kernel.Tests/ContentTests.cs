@@ -11,11 +11,54 @@ namespace Pcd.Kernel.Tests
         {
             ContentCatalog catalog = ContentCatalog.LoadBlank();
 
-            Assert.That(catalog.DefaultMonster, Is.EqualTo("monster.b01"));
+            Assert.That(catalog.DefaultMonster, Is.EqualTo("monster.901"));
             Assert.That(catalog.DefaultDeck.Length, Is.EqualTo(15));
-            Assert.That(catalog.NameOf("card.p01"), Is.EqualTo("一点"));
-            Assert.That(catalog.NameOf("monster.b01"), Is.EqualTo("白板怪物"));
+            Assert.That(catalog.NameOf("card.c901"), Is.EqualTo("一点"));
+            Assert.That(catalog.NameOf("monster.901"), Is.EqualTo("白板怪物"));
             Assert.That(catalog.Hash, Does.Match("^[0-9a-f]{64}$"));
+        }
+
+        [Test]
+        public void Content_hash_ignores_working_names()
+        {
+            const string named = @"
+cards:
+  - id: card.c901
+    name: 甲
+    points: 2
+monster:
+  id: monster.901
+  name: 甲怪
+  intents:
+    - card.c901
+";
+            const string renamed = @"
+cards:
+  - id: card.c901
+    name: 乙
+    points: 2
+monster:
+  id: monster.901
+  name: 乙怪
+  intents:
+    - card.c901
+";
+            const string retuned = @"
+cards:
+  - id: card.c901
+    name: 甲
+    points: 3
+monster:
+  id: monster.901
+  name: 甲怪
+  intents:
+    - card.c901
+";
+
+            string hash = ContentCatalog.Parse(named).Hash;
+
+            Assert.That(ContentCatalog.Parse(renamed).Hash, Is.EqualTo(hash));
+            Assert.That(ContentCatalog.Parse(retuned).Hash, Is.Not.EqualTo(hash));
         }
 
         [Test]

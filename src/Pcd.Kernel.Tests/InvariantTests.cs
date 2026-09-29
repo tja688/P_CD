@@ -19,12 +19,12 @@ namespace Pcd.Kernel.Tests
                 {
                     Seed = (ulong)(i + 1),
                     MonsterId = catalog.DefaultMonster!,
-                    Deck = catalog.DefaultDeck
+                    BuildDeck = catalog.DefaultDeck
                 };
                 MatchSession session = MatchSession.Start(catalog, setup);
                 var bot = new RandomDecider(new DeterministicRng(setup.Seed));
                 AdvanceResult step = session.Advance();
-                Check(session.View("omniscient"));
+                Check(step, session.View("omniscient"));
                 int decisions = 0;
                 while (step.Result == null)
                 {
@@ -36,15 +36,25 @@ namespace Pcd.Kernel.Tests
 
                     step = session.SubmitAndAdvance(bot.Choose(step.Pending!));
                     decisions++;
-                    Check(session.View("omniscient"));
+                    Check(step, session.View("omniscient"));
                 }
             }
 
             Assert.That(unfinished, Is.EqualTo(0));
         }
 
-        private static void Check(MatchView view)
+        private static void Check(AdvanceResult step, MatchView view)
         {
+            if (step.Result == null)
+            {
+                Assert.That(step.Pending, Is.Not.Null);
+                Assert.That(step.Pending!.Options.Length, Is.GreaterThan(0));
+            }
+            else
+            {
+                Assert.That(step.Pending, Is.Null);
+            }
+
             int boardPlayer = 0;
             int boardMonster = 0;
             int playerCells = 0;

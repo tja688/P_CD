@@ -99,8 +99,8 @@ namespace Pcd.Kernel
                 writer.Value(state.SetupSeed);
                 writer.Name("monster");
                 writer.Value(state.SetupMonsterId);
-                writer.Name("deck");
-                WriteStrings(writer, state.SetupDeck);
+                writer.Name("buildDeck");
+                WriteStrings(writer, state.BuildDeck);
                 writer.EndObject();
             }
 
@@ -223,7 +223,7 @@ namespace Pcd.Kernel
                 state.HasSetup = true;
                 state.SetupSeed = setup.Require("seed").ULong();
                 state.SetupMonsterId = setup.Require("monster").String();
-                state.SetupDeck = ReadStrings(setup.Require("deck"));
+                state.BuildDeck = ReadStrings(setup.Require("buildDeck"));
             }
 
             if (state.Waiting && state.NextDecisionId != state.PendingDecisionId + 1)
@@ -237,8 +237,8 @@ namespace Pcd.Kernel
         private static void WriteSide(JsonWriter writer, SideState side)
         {
             writer.BeginObject();
-            writer.Name("deck");
-            WriteCards(writer, side.Deck);
+            writer.Name("matchDeck");
+            WriteCards(writer, side.MatchDeck);
             writer.Name("hand");
             WriteCards(writer, side.Hand);
             writer.Name("discard");
@@ -253,7 +253,7 @@ namespace Pcd.Kernel
         private static SideState ReadSide(JsonValue node, ContentCatalog catalog, Side owner)
         {
             var side = new SideState();
-            ReadCards(node.Require("deck"), catalog, owner, Zone.Deck, side.Deck);
+            ReadCards(node.Require("matchDeck"), catalog, owner, Zone.MatchDeck, side.MatchDeck);
             ReadCards(node.Require("hand"), catalog, owner, Zone.Hand, side.Hand);
             ReadCards(node.Require("discard"), catalog, owner, Zone.Discard, side.Discard);
             ReadCards(node.Require("void"), catalog, owner, Zone.Void, side.Void);

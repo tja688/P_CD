@@ -49,7 +49,7 @@ if (!existsSync(probeDll) || !existsSync(mainMjs)) {
   process.exit(1)
 }
 
-for (const request of requests) {
+function compare(request) {
   const dotnetResult = run('dotnet', ['exec', probeDll, request])
   const wasmResult = run(process.execPath, [mainMjs, request])
   if (dotnetResult.stdout !== wasmResult.stdout) {
@@ -60,5 +60,19 @@ for (const request of requests) {
     process.stderr.write(wasmResult.stdout ?? '')
     process.exit(1)
   }
-  process.stdout.write(dotnetResult.stdout ?? '')
+  return dotnetResult.stdout ?? ''
+}
+
+for (const request of requests) {
+  process.stdout.write(compare(request))
+}
+
+const recorded = JSON.parse(compare('{"command":"record","seed":7}'))
+const replayRequest = JSON.stringify({ command: 'replay', replay: recorded.replay })
+const replayed = JSON.parse(compare(replayRequest))
+if (replayed.hash !== recorded.hash) {
+  process.stderr.write('Replay hash does not match the recording.\n')
+  process.stderr.write(recorded.hash + '\n')
+  process.stderr.write(replayed.hash + '\n')
+  process.exit(1)
 }

@@ -13,7 +13,7 @@ namespace Pcd.Kernel
     internal enum Zone
     {
         None,
-        Deck,
+        MatchDeck,
         Hand,
         Board,
         Discard,
@@ -60,7 +60,7 @@ namespace Pcd.Kernel
         {
             switch (zone)
             {
-                case Zone.Deck: return "deck";
+                case Zone.MatchDeck: return "deck";
                 case Zone.Hand: return "hand";
                 case Zone.Board: return "board";
                 case Zone.Discard: return "discard";
@@ -73,7 +73,7 @@ namespace Pcd.Kernel
         {
             switch (name)
             {
-                case "deck": return Zone.Deck;
+                case "deck": return Zone.MatchDeck;
                 case "hand": return Zone.Hand;
                 case "board": return Zone.Board;
                 case "discard": return Zone.Discard;
@@ -216,7 +216,7 @@ namespace Pcd.Kernel
 
     internal sealed class SideState
     {
-        public List<CardInstance> Deck = new List<CardInstance>();
+        public List<CardInstance> MatchDeck = new List<CardInstance>();
         public List<CardInstance> Hand = new List<CardInstance>();
         public List<CardInstance> Discard = new List<CardInstance>();
         public List<CardInstance> Void = new List<CardInstance>();
@@ -226,7 +226,7 @@ namespace Pcd.Kernel
         {
             return new SideState
             {
-                Deck = CloneCards(Deck),
+                MatchDeck = CloneCards(MatchDeck),
                 Hand = CloneCards(Hand),
                 Discard = CloneCards(Discard),
                 Void = CloneCards(Void),
@@ -286,12 +286,29 @@ namespace Pcd.Kernel
         public bool HasSetup;
         public ulong SetupSeed;
         public string SetupMonsterId = "";
-        public List<string> SetupDeck = new List<string>();
+        public List<string> BuildDeck = new List<string>();
         public Decision? Pending;
 
         public SideState SideOf(Side side)
         {
             return side == Side.Player ? Player : Monster;
+        }
+
+        private static bool IntentAlreadyRevealed(MatchPhase phase)
+        {
+            switch (phase)
+            {
+                case MatchPhase.PlayerDraw:
+                case MatchPhase.PlayerAction:
+                case MatchPhase.PlayerTurnEnd:
+                case MatchPhase.MonsterTurnStart:
+                case MatchPhase.MonsterAction:
+                case MatchPhase.MonsterTurnEnd:
+                case MatchPhase.Finished:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         public MatchState Clone()
@@ -323,7 +340,7 @@ namespace Pcd.Kernel
                 HasSetup = HasSetup,
                 SetupSeed = SetupSeed,
                 SetupMonsterId = SetupMonsterId,
-                SetupDeck = new List<string>(SetupDeck),
+                BuildDeck = new List<string>(BuildDeck),
                 Pending = null
             };
             for (int i = 0; i < 9; i++)
@@ -362,12 +379,12 @@ namespace Pcd.Kernel
                 state.Intents.Add(monster.Intents[i]);
             }
 
-            for (int i = 0; i < setup.Deck.Length; i++)
+            for (int i = 0; i < setup.BuildDeck.Length; i++)
             {
-                state.SetupDeck.Add(setup.Deck[i]);
-                CardInstance card = CreateDefined(catalog, state, setup.Deck[i], Side.Player);
-                card.Zone = Zone.Deck;
-                state.Player.Deck.Add(card);
+                state.BuildDeck.Add(setup.BuildDeck[i]);
+                CardInstance card = CreateDefined(catalog, state, setup.BuildDeck[i], Side.Player);
+                card.Zone = Zone.MatchDeck;
+                state.Player.MatchDeck.Add(card);
             }
 
             return state;
@@ -406,7 +423,10 @@ namespace Pcd.Kernel
                 state.Intents.Add(monster.Intents[i]);
             }
 
-            state.RevealedIntent = state.Intents[state.IntentCursor % state.Intents.Count];
+            if (IntentAlreadyRevealed(state.Phase))
+            {
+                state.RevealedIntent = state.Intents[state.IntentCursor % state.Intents.Count];
+            }
             for (int i = 0; i < position.PollutedCells.Length; i++)
             {
                 int cell = position.PollutedCells[i];
@@ -459,7 +479,7 @@ namespace Pcd.Kernel
                 state.Board[cell - 1] = card;
             }
 
-            AddZone(catalog, state, position.PlayerDeck, state.Player.Deck, Zone.Deck, Side.Player);
+            AddZone(catalog, state, position.PlayerMatchDeck, state.Player.MatchDeck, Zone.MatchDeck, Side.Player);
             AddZone(catalog, state, position.PlayerHand, state.Player.Hand, Zone.Hand, Side.Player);
             AddZone(catalog, state, position.PlayerDiscard, state.Player.Discard, Zone.Discard, Side.Player);
             AddZone(catalog, state, position.PlayerVoid, state.Player.Void, Zone.Void, Side.Player);

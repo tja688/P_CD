@@ -107,12 +107,13 @@ namespace Pcd.Kernel
                 throw new InvalidOperationException("内容哈希不符：录像是 " + content + "，当前是 " + catalog.Hash + "。");
             }
 
+            JsonValue? opportunities = root.Find("opportunities");
             var setup = new MatchSetup
             {
                 Seed = root.Require("seed").ULong(),
                 MonsterId = root.Require("monster").String(),
-                Deck = ReadDeck(root.Require("deck")),
-                OpportunitiesPerTurn = 1
+                BuildDeck = ReadBuildDeck(root.Require("buildDeck")),
+                OpportunitiesPerTurn = opportunities == null || opportunities.IsNull ? 1 : opportunities.Int()
             };
             MatchSession session = Start(catalog, setup);
             if (captureEvent == 0)
@@ -242,14 +243,16 @@ namespace Pcd.Kernel
             writer.Value(_state.SetupSeed);
             writer.Name("monster");
             writer.Value(_state.SetupMonsterId);
-            writer.Name("deck");
+            writer.Name("buildDeck");
             writer.BeginArray();
-            for (int i = 0; i < _state.SetupDeck.Count; i++)
+            for (int i = 0; i < _state.BuildDeck.Count; i++)
             {
-                writer.Value(_state.SetupDeck[i]);
+                writer.Value(_state.BuildDeck[i]);
             }
 
             writer.EndArray();
+            writer.Name("opportunities");
+            writer.Value(_state.OpportunitiesPerTurn);
             writer.Name("decisions");
             writer.BeginArray();
             for (int i = 0; i < _state.Answers.Count; i++)
@@ -315,11 +318,11 @@ namespace Pcd.Kernel
             }
         }
 
-        private static string[] ReadDeck(JsonValue node)
+        private static string[] ReadBuildDeck(JsonValue node)
         {
             if (!node.IsArray || node.Array == null)
             {
-                throw new FormatException("录像的牌组必须是数组。");
+                throw new FormatException("录像的构建牌组必须是数组。");
             }
 
             var deck = new string[node.Array.Count];

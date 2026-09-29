@@ -159,7 +159,7 @@ namespace Pcd.Kernel
                 PlayerOccupancy = Occupancy(Side.Player),
                 MonsterOccupancy = Occupancy(Side.Monster),
                 HandCount = _state.Player.Hand.Count,
-                DeckCount = _state.Player.Deck.Count,
+                MatchDeckCount = _state.Player.MatchDeck.Count,
                 PlayerDiscardCount = _state.Player.Discard.Count,
                 MonsterDiscardCount = _state.Monster.Discard.Count,
                 Winner = _state.Winner,
@@ -178,7 +178,7 @@ namespace Pcd.Kernel
             }
 
             view.Hand = showHand ? ToViews(_state.Player.Hand) : Array.Empty<ViewCard>();
-            view.Deck = showDeck ? ToViews(_state.Player.Deck) : Array.Empty<ViewCard>();
+            view.MatchDeck = showDeck ? ToViews(_state.Player.MatchDeck) : Array.Empty<ViewCard>();
             view.PlayerDiscard = ToViews(_state.Player.Discard);
             view.MonsterDiscard = ToViews(_state.Monster.Discard);
             view.PlayerVoid = ToViews(_state.Player.Void);
@@ -194,11 +194,11 @@ namespace Pcd.Kernel
                     }
                 }
 
-                all.AddRange(ToViews(_state.Player.Deck));
+                all.AddRange(ToViews(_state.Player.MatchDeck));
                 all.AddRange(view.Hand);
                 all.AddRange(view.PlayerDiscard);
                 all.AddRange(view.PlayerVoid);
-                all.AddRange(ToViews(_state.Monster.Deck));
+                all.AddRange(ToViews(_state.Monster.MatchDeck));
                 all.AddRange(ToViews(_state.Monster.Hand));
                 all.AddRange(view.MonsterDiscard);
                 all.AddRange(view.MonsterVoid);
@@ -210,7 +210,7 @@ namespace Pcd.Kernel
 
         private void LevelStart()
         {
-            Shuffle(_state.Player.Deck);
+            Shuffle(_state.Player.MatchDeck);
             MonsterDefinition monster = _catalog.RequireMonster(_state.MonsterId);
             for (int i = 0; i < monster.Starting.Length; i++)
             {
@@ -268,7 +268,7 @@ namespace Pcd.Kernel
             {
                 EmitSkipDraw("hand-full");
             }
-            else if (_state.Player.Deck.Count == 0)
+            else if (_state.Player.MatchDeck.Count == 0)
             {
                 EmitSkipDraw("deck-empty");
             }
@@ -432,9 +432,14 @@ namespace Pcd.Kernel
 
             if (attack == defense)
             {
+                // Tie entry leaves the cell in the same step. Pollution only hits a card that remains there.
                 RemoveFromBoard(occupier, "tie-cover");
                 Enter(card, cell, "play");
-                RemoveFromBoard(card, "tie-cover");
+                if (card.Zone == Zone.Board)
+                {
+                    RemoveFromBoard(card, "tie-cover");
+                }
+
                 return;
             }
 
@@ -507,6 +512,10 @@ namespace Pcd.Kernel
                 Points = Points.Current(card),
                 Zone = Names.ZoneName(Zone.Board)
             });
+            if (Points.Current(card) == 0)
+            {
+                RemoveFromBoard(card, "points-zero");
+            }
         }
 
         private void RemoveFromBoard(CardInstance card, string reason)
@@ -658,7 +667,7 @@ namespace Pcd.Kernel
                     return;
                 }
 
-                if (_state.Player.Deck.Count == 0)
+                if (_state.Player.MatchDeck.Count == 0)
                 {
                     return;
                 }
@@ -669,8 +678,8 @@ namespace Pcd.Kernel
 
         private void DrawOne()
         {
-            CardInstance card = _state.Player.Deck[0];
-            _state.Player.Deck.RemoveAt(0);
+            CardInstance card = _state.Player.MatchDeck[0];
+            _state.Player.MatchDeck.RemoveAt(0);
             card.Zone = Zone.Hand;
             card.Cell = 0;
             _state.Player.Hand.Add(card);
@@ -824,7 +833,7 @@ namespace Pcd.Kernel
 
         private bool PlayerHasUsableCards()
         {
-            return _state.Player.Hand.Count > 0 || _state.Player.Deck.Count > 0;
+            return _state.Player.Hand.Count > 0 || _state.Player.MatchDeck.Count > 0;
         }
 
         private int Total(Side side)

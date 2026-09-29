@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Text.Json;
 using NUnit.Framework;
 using Pcd.Kernel;
 
@@ -89,8 +91,8 @@ namespace Pcd.Kernel.Tests
             Assert.That(publicly.Hand.Length, Is.EqualTo(0));
             Assert.That(publicly.HandCount, Is.EqualTo(player.HandCount));
             Assert.That(publicly.Cells[4].Card, Is.Not.Null);
-            Assert.That(player.Deck.Length, Is.EqualTo(0));
-            Assert.That(session.View("omniscient").Deck.Length, Is.EqualTo(player.DeckCount));
+            Assert.That(player.MatchDeck.Length, Is.EqualTo(0));
+            Assert.That(session.View("omniscient").MatchDeck.Length, Is.EqualTo(player.MatchDeckCount));
         }
 
         [Test]
@@ -121,10 +123,77 @@ namespace Pcd.Kernel.Tests
         public void Same_seed_playout_hash_is_stable()
         {
             // Seed 7 on the blank catalog: monster wins by full board in round 6.
-            const string expected = "96f27ba2583b6cca8c40621caf045478525129fb1b2016d862213427792cf206";
+            const string expected = "edad264c50a4f94f6d3050dbc70ac0d81dfb167999b4a6e3bf8d3f9549fd9fcc";
 
             Assert.That(MatchProtocol.PlayoutHash(7), Is.EqualTo(expected));
             Assert.That(MatchProtocol.PlayoutHash(7), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void Replay_keeps_opportunities_per_turn()
+        {
+            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            var setup = new MatchSetup
+            {
+                Seed = 9,
+                MonsterId = catalog.DefaultMonster!,
+                BuildDeck = catalog.DefaultDeck,
+                OpportunitiesPerTurn = 2
+            };
+            MatchSession original = MatchSession.Start(catalog, setup);
+            original.Advance();
+            MatchSession replayed = MatchSession.PlayReplay(original.ToReplay(), catalog);
+
+            Assert.That(replayed.View("player").RemainingOpportunities, Is.EqualTo(2));
+            Assert.That(replayed.EventHash(), Is.EqualTo(original.EventHash()));
+        }
+
+        [Test]
+        public void Protocol_replays_the_same_recording()
+        {
+            string recorded = KernelEntry.Invoke("{\"command\":\"record\",\"seed\":7}");
+            using JsonDocument record = JsonDocument.Parse(recorded);
+            string replay = record.RootElement.GetProperty("replay").GetString()!;
+            string hash = record.RootElement.GetProperty("hash").GetString()!;
+            string request = JsonSerializer.Serialize(new Dictionary<string, string>
+            {
+                ["command"] = "replay",
+                ["replay"] = replay
+            });
+            using JsonDocument replayed = JsonDocument.Parse(KernelEntry.Invoke(request));
+
+            Assert.That(hash, Is.EqualTo(MatchProtocol.PlayoutHash(7)));
+            Assert.That(replayed.RootElement.GetProperty("hash").GetString(), Is.EqualTo(hash));
+            Assert.That(replayed.RootElement.GetProperty("winner").GetString(), Is.Not.EqualTo("unfinished"));
+        }
+
+        [Test]
+        public void Protocol_answer_uses_the_snapshot()
+        {
+            using JsonDocument start = JsonDocument.Parse(KernelEntry.Invoke("{\"command\":\"start\",\"seed\":4}"));
+            JsonElement pending = start.RootElement.GetProperty("pending");
+            string snapshot = start.RootElement.GetProperty("snapshot").GetString()!;
+            string option = pending.GetProperty("options")[0].GetProperty("id").GetString()!;
+            Assert.That(pending.GetProperty("actor").GetString(), Is.EqualTo("player"));
+
+            string request = JsonSerializer.Serialize(new Dictionary<string, string>
+            {
+                ["command"] = "answer",
+                ["snapshot"] = snapshot,
+                ["option"] = option
+            });
+            using JsonDocument answered = JsonDocument.Parse(KernelEntry.Invoke(request));
+            Assert.That(answered.RootElement.GetProperty("events").GetArrayLength(), Is.GreaterThan(0));
+
+            string viewRequest = JsonSerializer.Serialize(new Dictionary<string, string>
+            {
+                ["command"] = "view",
+                ["snapshot"] = snapshot,
+                ["audience"] = "public"
+            });
+            using JsonDocument view = JsonDocument.Parse(KernelEntry.Invoke(viewRequest));
+            Assert.That(view.RootElement.GetProperty("hand").GetArrayLength(), Is.EqualTo(0));
+            Assert.That(view.RootElement.GetProperty("handCount").GetInt32(), Is.GreaterThan(0));
         }
 
         [Test]
@@ -147,7 +216,7 @@ namespace Pcd.Kernel.Tests
             {
                 Seed = seed,
                 MonsterId = catalog.DefaultMonster!,
-                Deck = catalog.DefaultDeck
+                BuildDeck = catalog.DefaultDeck
             };
         }
 

@@ -319,8 +319,6 @@ namespace Pcd.Kernel
                 builder.Append(card.Id);
                 builder.Append(' ');
                 builder.Append(card.IsSpell ? "spell" : card.Points.ToString(CultureInfo.InvariantCulture));
-                builder.Append(' ');
-                builder.Append(card.Name);
                 builder.Append('\n');
             }
 
@@ -336,8 +334,6 @@ namespace Pcd.Kernel
                 MonsterDefinition monster = _monsters[monsterIds[i]];
                 builder.Append("monster ");
                 builder.Append(monster.Id);
-                builder.Append(' ');
-                builder.Append(monster.Name);
                 builder.Append('\n');
                 for (int s = 0; s < monster.Starting.Length; s++)
                 {
