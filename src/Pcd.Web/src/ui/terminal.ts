@@ -15,16 +15,17 @@ import { ButtonFace, CardFace } from './widgets'
 
 const W = 640
 const H = 360
-const BOARD_X = 124
-const BOARD_Y = 22
+const BOARD_X = 136
+const BOARD_Y = 30
 const CELL_W = 86
 const CELL_H = 68
 const GAP = 5
-const HAND_Y = 244
+const HAND_Y = 250
 const HAND_W = 78
-const HAND_H = 88
-const SIDE_X = 400
-const HAND_MAX_X = 392
+const HAND_H = 80
+const SIDE_X = 416
+const HAND_MAX_X = 408
+const SAFE_RIGHT = 568
 
 type Mode = 'boot' | 'wake' | 'menu' | 'match' | 'result'
 type Arm =
@@ -170,8 +171,8 @@ export class Terminal {
       this.cellMarks.push(mark)
       this.match.addChild(mark.root)
     }
-    this.intentFace.root.x = 8
-    this.intentFace.root.y = 36
+    this.intentFace.root.x = 26
+    this.intentFace.root.y = 32
     this.match.addChild(this.intentFace.root)
     this.resize(renderer.width / renderer.resolution, renderer.height / renderer.resolution)
     void renderer.render({ container: this.world, target: this.scene, clear: true })
@@ -383,11 +384,11 @@ export class Terminal {
   }
 
   private layoutBoot(): void {
-    this.bootLabel.set('按下任意键', 0, 0.8)
+    this.bootLabel.set('按下任意键', 0, 1)
     this.bootLabel.root.x = Math.round((W - this.glyphs.measure('按下任意键')) / 2)
     this.bootLabel.root.y = 156
     const sub = this.glyphs.makeLabel()
-    sub.set('接通磷光', 0, 0.4)
+    sub.set('接通磷光', 0, 0.48)
     sub.root.x = Math.round((W - this.glyphs.measure('接通磷光')) / 2)
     sub.root.y = 178
     this.boot.addChild(sub.root)
@@ -441,50 +442,50 @@ export class Terminal {
     this.menu.removeChildren().forEach((child) => child.destroy({ children: true }))
     this.hits = []
     const title = this.glyphs.makeLabel()
-    title.set('THE CALL', 0, 1)
-    title.root.x = 28
-    title.root.y = 28
+    title.set('THE CALL', 0, 0.72)
+    title.root.x = 36
+    title.root.y = 22
     const sub = this.glyphs.makeLabel()
-    sub.set('九宫格上，先看意图，再比点数', 0, 0.48)
-    sub.root.x = 28
-    sub.root.y = 48
+    sub.set('九宫格上，先看意图，再比点数', 0, 0.36)
+    sub.root.x = 36
+    sub.root.y = 42
     this.menu.addChild(title.root, sub.root)
     const headDeck = this.glyphs.makeLabel()
-    headDeck.set('牌组', 0, 0.55)
-    headDeck.root.position.set(28, 84)
+    headDeck.set('牌组', 0, 0.4)
+    headDeck.root.position.set(36, 78)
     const headMonster = this.glyphs.makeLabel()
-    headMonster.set('怪物', 0, 0.55)
-    headMonster.root.position.set(330, 84)
+    headMonster.set('怪物', 0, 0.4)
+    headMonster.root.position.set(320, 78)
     this.menu.addChild(headDeck.root, headMonster.root)
     const focus = this.menuItems()[this.cursor]?.id ?? ''
     catalog.decks.forEach((deck, index) => {
       const id = `deck:${deck.id}`
-      this.menuRow(id, 28, 108 + index * 36, 250, 28, this.deckLine(deck), this.deckId === deck.id, focus === id)
+      this.menuRow(id, 36, 102 + index * 36, 250, 28, this.deckLine(deck), this.deckId === deck.id, focus === id)
     })
     catalog.monsters.forEach((monster, index) => {
       const id = `monster:${monster.id}`
-      this.menuRow(id, 330, 108 + index * 56, 280, 48, this.monsterLine(monster), this.monsterId === monster.id, focus === id)
+      this.menuRow(id, 320, 102 + index * 56, 240, 48, this.monsterLine(monster), this.monsterId === monster.id, focus === id)
     })
     const seedLabel = this.glyphs.makeLabel()
-    seedLabel.set(`种子 ${String(this.seed).padStart(4, '0')}    ← →`, 0, 0.6)
-    seedLabel.root.position.set(28, 300)
+    seedLabel.set(`种子 ${String(this.seed).padStart(4, '0')}    ← →`, 0, 0.42)
+    seedLabel.root.position.set(36, 292)
     this.menu.addChild(seedLabel.root)
-    this.menuRow('start', 470, 292, 120, 28, '开打', focus === 'start', focus === 'start')
+    this.menuRow('start', 440, 286, 112, 28, '开打', focus === 'start', focus === 'start')
     const hint = this.glyphs.makeLabel()
-    hint.set('↑↓选择   Enter确认   H重读内容', 0, 0.38)
-    hint.root.position.set(28, 332)
+    hint.set('↑↓选择   Enter确认   H重读内容', 0, 0.3)
+    hint.root.position.set(36, 332)
     this.menu.addChild(hint.root)
     this.menu.visible = this.mode === 'menu'
   }
 
   private menuRow(id: string, x: number, y: number, w: number, h: number, text: string, selected: boolean, focused: boolean): void {
-    const bg = new Sprite(frameTexture(focused || selected ? 'player' : 'empty', w, h))
+    const bg = new Sprite(frameTexture(focused ? 'player' : selected ? 'monster' : 'empty', w, h))
     bg.x = x
     bg.y = y
-    bg.alpha = focused ? 1 : selected ? 0.78 : 0.55
+    bg.alpha = 1
     const label = this.glyphs.makeLabel()
     const body = focused ? text.replace(/^/, '▸') : text
-    label.set(body, w - 12, focused ? 1 : selected ? 0.88 : 0.58)
+    label.set(body, w - 12, focused ? 1 : selected ? 0.62 : 0.38)
     label.root.x = x + 6
     label.root.y = y + 6
     this.menu.addChild(bg, label.root)
@@ -840,16 +841,17 @@ export class Terminal {
   private paintHeader(): void {
     this.header.removeChildren().forEach((child) => child.destroy({ children: true }))
     const left = this.glyphs.makeLabel()
-    left.set('THE CALL', 0, 0.85)
-    left.root.position.set(8, 4)
+    left.set('THE CALL', 0, 0.38)
+    left.root.position.set(36, 14)
     const phase = this.glyphs.makeLabel()
     const phaseText = this.banner || phaseName(this.view?.phase ?? '')
-    phase.set(`第${this.shown.round}回合  ${phaseText}`, 0, 0.7)
-    phase.root.position.set(160, 4)
+    phase.set(`第${this.shown.round}回合  ${phaseText}`, 0, 0.46)
+    phase.root.position.set(148, 14)
+    const speedText = `×${this.speed}`
     const right = this.glyphs.makeLabel()
-    right.set(`×${this.speed}`, 0, 0.45)
-    right.root.x = W - 28
-    right.root.y = 4
+    right.set(speedText, 0, 0.42)
+    right.root.x = SAFE_RIGHT - this.glyphs.measure(speedText)
+    right.root.y = 14
     this.header.addChild(left.root, phase.root, right.root)
   }
 
@@ -858,17 +860,19 @@ export class Terminal {
       const frame = this.cellFrames[index]!
       const cell = index + 1
       const occupied = this.shown.cells[index] != null
-      frame.texture = frameTexture(polluted && !occupied ? 'polluted' : 'empty', CELL_W, CELL_H)
+      const legal = this.legalCell(cell)
+      const aimed = this.arm.kind === 'play' && this.arm.cell === cell
+      frame.texture = frameTexture(polluted && !occupied ? 'polluted' : aimed || legal ? 'aim' : 'empty', CELL_W, CELL_H)
       frame.visible = !occupied
+      frame.alpha = 1
       const mark = this.cellMarks[index]
       if (mark) {
         mark.root.visible = !occupied
+        mark.set(String(cell), 2, aimed ? 1 : legal ? 0.7 : 0.22)
       }
-      const legal = this.legalCell(cell)
       if (!occupied) {
         this.hits.push({ ...cellOrigin(cell), w: CELL_W, h: CELL_H, id: `cell:${cell}` })
       }
-      frame.alpha = legal ? 0.75 + 0.25 * Math.sin(this.time / 180) : 1
     })
   }
 
@@ -885,7 +889,7 @@ export class Terminal {
         title: this.card(card.card)?.name ?? card.card,
         sub: this.statusLine(card),
         points: card.spell ? '' : String(card.points),
-        bright: card.owner === 'monster' ? 0.78 : 1,
+        bright: card.owner === 'monster' ? 0.62 : 0.92,
         hot: this.cardHot(card.instance) || (cell > 0 && this.legalCell(cell)),
         legal: this.cardLegal(card.instance),
       })
@@ -919,10 +923,12 @@ export class Terminal {
     this.handRow.removeChildren()
     const cards = this.shown.hand
     const count = Math.max(1, cards.length)
-    const span = HAND_MAX_X - 8
-    const step = Math.min(HAND_W + 4, Math.floor(span / count))
-    const total = step * cards.length
-    const origin = Math.round((W - total) / 2)
+    const left = 28
+    const span = HAND_MAX_X - left
+    const gaps = Math.max(1, count - 1)
+    const step = Math.min(HAND_W + 4, Math.max(40, Math.floor((span - HAND_W) / gaps)))
+    const total = (count - 1) * step + HAND_W
+    const origin = left + Math.max(0, Math.floor((span - total) / 2))
     if (cards.length === 0) {
       const empty = this.glyphs.makeLabel()
       empty.set('手牌空', 0, 0.4)
@@ -931,8 +937,9 @@ export class Terminal {
     }
     cards.forEach((card, index) => {
       const raised = this.armMentions(card.instance) || this.hover === `hand:${card.instance}`
+      const armed = this.cardHot(card.instance)
       const x = origin + index * step
-      const y = HAND_Y - (raised ? 10 : 0)
+      const y = HAND_Y - (raised ? 6 : 0)
       const face = this.face(card.instance, HAND_W, HAND_H)
       face.root.x = x
       face.root.y = y
@@ -941,15 +948,15 @@ export class Terminal {
         title: this.card(card.card)?.name ?? card.card,
         sub: card.spell ? '法术' : this.statusLine(card),
         points: card.spell ? '' : String(card.points),
-        bright: 1,
-        hot: this.cardHot(card.instance),
+        bright: armed ? 1 : this.arm.kind === 'none' ? 0.7 : 0.4,
+        hot: armed,
         legal: this.cardLegal(card.instance),
       })
       this.handRow.addChild(face.root)
       this.hits.push({ x, y, w: Math.min(HAND_W, step), h: HAND_H, id: `hand:${card.instance}` })
     })
-    this.handHint.set('选牌  确认  Esc取消  E结束  U悔棋  F加速  Tab跳过', 0, 0.4)
-    this.handHint.root.position.set(8, 344)
+    this.handHint.set('选牌  确认  Esc取消  E结束  U悔棋  F加速  Tab跳过', HAND_MAX_X - 36, 0.28)
+    this.handHint.root.position.set(28, 336)
     this.handRow.addChild(this.handHint.root)
   }
 
@@ -965,7 +972,7 @@ export class Terminal {
       title: def.name,
       sub: def.spell ? '法术' : '',
       points: def.spell ? '' : String(def.points),
-      bright: 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(this.time / 420)),
+      bright: this.arm.kind === 'none' ? 0.95 : 0.58,
       hot: false,
       legal: false,
     })
@@ -975,61 +982,65 @@ export class Terminal {
     this.notes.removeChildren().forEach((child) => child.destroy({ children: true }))
     const label = (text: string, x: number, y: number, bright = 0.65) => {
       const line = this.glyphs.makeLabel()
-      line.set(text, 228, bright)
+      line.set(text, SAFE_RIGHT - SIDE_X, bright)
       line.root.position.set(x, y)
       this.notes.addChild(line.root)
       return line
     }
-    label('玩家', SIDE_X, 22, 0.5)
-    label('怪物', 520, 22, 0.5)
+    label('玩家', SIDE_X, 16, 0.32)
+    label('怪物', SIDE_X + 96, 16, 0.32)
     const player = new Digits()
-    player.set(String(this.shown.playerPoints), 3, 1)
-    player.root.position.set(SIDE_X, 38)
+    player.set(String(this.shown.playerPoints), 3, 0.48)
+    player.root.position.set(SIDE_X, 32)
     const monster = new Digits()
-    monster.set(String(this.shown.monsterPoints), 3, 0.7)
-    monster.root.position.set(520, 38)
+    monster.set(String(this.shown.monsterPoints), 3, 0.4)
+    monster.root.position.set(SIDE_X + 96, 32)
     this.notes.addChild(player.root, monster.root)
-    label(`占格 ${this.shown.playerOccupancy} / ${this.shown.monsterOccupancy}`, SIDE_X, 66, 0.55)
-    label(`牌组 ${this.shown.deck}  弃牌 ${this.shown.playerDiscard}`, SIDE_X, 82, 0.55)
-    let statY = 98
+    label(`占格 ${this.shown.playerOccupancy} / ${this.shown.monsterOccupancy}`, SIDE_X, 56, 0.32)
+    label(`牌组 ${this.shown.deck}  弃牌 ${this.shown.playerDiscard}`, SIDE_X, 72, 0.32)
+    let statY = 90
     if (this.shown.playerVoid + this.shown.monsterVoid > 0) {
-      label(`消散 ${this.shown.playerVoid + this.shown.monsterVoid}`, SIDE_X, statY, 0.45)
+      label(`消散 ${this.shown.playerVoid + this.shown.monsterVoid}`, SIDE_X, statY, 0.3)
       statY += 16
     }
     const faith = this.shown.pools.find((pool) => pool.owner === 'player' && pool.id === 'resource.faith')
     if (faith) {
-      label(`信仰 ${faith.amount}`, SIDE_X, statY, 0.85)
+      label(`信仰 ${faith.amount}`, SIDE_X, statY, 0.55)
       statY += 16
     }
     if (this.view?.phase === 'player-action') {
-      label(`出牌机会 ${this.view.remainingOpportunities}`, SIDE_X, statY, 0.7)
+      label(`出牌机会 ${this.view.remainingOpportunities}`, SIDE_X, statY, 0.4)
       statY += 16
     }
     const looked = this.inspectCard()
-    if (looked) {
-      label(looked.name, SIDE_X, statY + 6, 1)
-      label(clipText(looked.text || (looked.spell ? '法术' : '无效果'), 64), SIDE_X, statY + 22, 0.62)
+    if (looked && statY < 150) {
+      label(looked.name, SIDE_X, statY + 4, 0.7)
+      label(clipText(looked.text || (looked.spell ? '法术' : '无效果'), 12), SIDE_X, statY + 20, 0.34)
     }
-    this.log.slice(-2).forEach((line, index) => label(line, SIDE_X, 312 + index * 14, 0.38))
+    const toast = this.log[this.log.length - 1]
+    if (toast) {
+      label(toast, SIDE_X, 176, 0.5)
+    }
     const ready = this.armReady()
+    const cancelX = SIDE_X + 76
     this.okButton.set('确认', ready)
-    this.okButton.root.position.set(SIDE_X, 276)
+    this.okButton.root.position.set(SIDE_X, 236)
     this.okButton.root.visible = ready
     this.noButton.set('取消', this.arm.kind !== 'none')
-    this.noButton.root.position.set(478, 276)
+    this.noButton.root.position.set(ready ? cancelX : SIDE_X, 236)
     this.noButton.root.visible = this.arm.kind !== 'none'
     this.endButton.set(this.arm.kind === 'end' ? '确认结束' : '结束回合', this.arm.kind === 'end')
-    this.endButton.root.position.set(SIDE_X, 248)
+    this.endButton.root.position.set(SIDE_X, 208)
     const canEnd = !!this.pending?.options.some((option) => option.kind === 'end-turn')
     this.endButton.root.visible = canEnd && this.pending?.actor === 'player'
     if (ready) {
-      this.hits.push({ x: SIDE_X, y: 276, w: 72, h: 22, id: 'confirm' })
+      this.hits.push({ x: SIDE_X, y: 236, w: 72, h: 22, id: 'confirm' })
     }
     if (this.arm.kind !== 'none') {
-      this.hits.push({ x: 478, y: 276, w: 72, h: 22, id: 'cancel' })
+      this.hits.push({ x: ready ? cancelX : SIDE_X, y: 236, w: 72, h: 22, id: 'cancel' })
     }
     if (canEnd && this.pending?.actor === 'player') {
-      this.hits.push({ x: SIDE_X, y: 248, w: 108, h: 22, id: 'end-turn' })
+      this.hits.push({ x: SIDE_X, y: 208, w: 108, h: 22, id: 'end-turn' })
     }
   }
 

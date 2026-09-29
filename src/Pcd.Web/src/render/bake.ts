@@ -1,6 +1,6 @@
 import { Texture } from 'pixi.js'
 
-export type FrameKind = 'player' | 'monster' | 'empty' | 'polluted'
+export type FrameKind = 'player' | 'monster' | 'empty' | 'polluted' | 'aim'
 
 const cache = new Map<string, Texture>()
 
@@ -15,8 +15,8 @@ export function frameTexture(kind: FrameKind, w: number, h: number): Texture {
   canvas.height = h
   const ctx = canvas.getContext('2d')!
   const img = ctx.createImageData(w, h)
-  const edge = kind === 'monster' ? 170 : kind === 'empty' || kind === 'polluted' ? 90 : 230
-  const fill = kind === 'polluted' ? 28 : 16
+  const edge = kind === 'aim' ? 240 : kind === 'monster' ? 160 : kind === 'player' ? 245 : kind === 'polluted' ? 96 : 58
+  const fill = kind === 'aim' ? 22 : kind === 'monster' ? 40 : kind === 'player' ? 72 : kind === 'polluted' ? 18 : 4
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const border = x === 0 || y === 0 || x === w - 1 || y === h - 1

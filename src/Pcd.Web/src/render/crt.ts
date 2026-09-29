@@ -34,13 +34,15 @@ void main() {
   glow += texture(uTexture, snapped - vec2(0.0, 1.0 / logical.y)).r;
   float signal = center + glow * 0.03;
   signal *= 0.99 + 0.01 * sin(uTime * 18.0);
-  float scan = 0.93 + 0.07 * sin(gl_FragCoord.y * 3.14159);
-  float grille = 0.96 + 0.04 * step(0.5, fract(gl_FragCoord.x * 0.5));
+  float scan = 0.955 + 0.035 * sin(gl_FragCoord.y * 3.14159);
+  float grille = 0.97 + 0.03 * step(0.5, fract(gl_FragCoord.x * 0.5));
   vec2 q = uv * 2.0 - 1.0;
-  float vig = smoothstep(1.35, 0.35, length(q));
-  vig = mix(0.78, 1.0, vig);
+  float vig = smoothstep(1.25, 0.28, length(q));
+  float tube = smoothstep(1.05, 0.15, length(q));
+  signal = max(signal, 0.085 * tube * tube);
+  vig = mix(0.58, 1.0, vig);
   signal += (grain(gl_FragCoord.xy) - 0.5) * 0.008;
-  vec3 dim = vec3(0.28, 0.08, 0.0);
+  vec3 dim = vec3(0.42, 0.14, 0.02);
   vec3 mid = vec3(1.0, 0.62, 0.12);
   vec3 hot = vec3(1.0, 0.95, 0.78);
   float t = clamp(signal, 0.0, 1.0);
@@ -60,7 +62,7 @@ export function createCrtFilter(): Filter {
     resources: {
       crtUniforms: new UniformGroup({
         uTime: { value: 0, type: 'f32' },
-        uCurve: { value: 0.085, type: 'f32' },
+        uCurve: { value: 0.05, type: 'f32' },
         uLogical: { value: { x: 640, y: 360 }, type: 'vec2<f32>' },
       }),
     },
