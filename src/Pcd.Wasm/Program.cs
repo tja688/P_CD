@@ -11,6 +11,6 @@ public partial class KernelBridge
     [JSExport]
     public static string Invoke(string requestJson)
     {
-        return KernelProbe.Invoke(requestJson);
+        return KernelEntry.Invoke(requestJson);
     }
 }

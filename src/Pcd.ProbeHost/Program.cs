@@ -15,7 +15,7 @@ namespace Pcd.ProbeHost
                 return 1;
             }
 
-            Console.Out.Write(KernelProbe.Invoke(args[0]));
+            Console.Out.Write(KernelEntry.Invoke(args[0]));
             Console.Out.Write('\n');
             return 0;
         }

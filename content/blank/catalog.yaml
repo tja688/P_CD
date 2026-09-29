@@ -1,0 +1,60 @@
+cards:
+  - id: card.p01
+    name: 一点
+    points: 1
+  - id: card.p02
+    name: 两点
+    points: 2
+  - id: card.p03
+    name: 三点
+    points: 3
+  - id: card.p04
+    name: 四点
+    points: 4
+  - id: card.p05
+    name: 五点
+    points: 5
+  - id: card.p06
+    name: 六点
+    points: 6
+  - id: card.m01
+    name: 驻点
+    points: 4
+  - id: card.m02
+    name: 冲锋
+    points: 3
+  - id: card.m03
+    name: 重击
+    points: 5
+  - id: card.m04
+    name: 骚扰
+    points: 2
+  - id: card.s01
+    name: 空白法术
+monsters:
+  - id: monster.b01
+    name: 白板怪物
+    starting:
+      - card: card.m01
+        cell: 5
+    intents:
+      - card.m02
+      - card.m03
+      - card.m04
+defaultMonster: monster.b01
+defaultDeck:
+  - card.p01
+  - card.p02
+  - card.p03
+  - card.p04
+  - card.p05
+  - card.p06
+  - card.p01
+  - card.p02
+  - card.p03
+  - card.p04
+  - card.p05
+  - card.p06
+  - card.p03
+  - card.p04
+  - card.p05

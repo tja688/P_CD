@@ -39,11 +39,11 @@ namespace Pcd.Kernel.Tests
             var stdout = new StringWriter();
             var stderr = new StringWriter();
 
-            int code = SimProgram.Run(new[] { "play" }, stdout, stderr);
+            int code = SimProgram.Run(new[] { "nope" }, stdout, stderr);
 
             Assert.That(code, Is.EqualTo(1));
             Assert.That(stdout.ToString(), Is.Empty);
-            Assert.That(stderr.ToString(), Is.EqualTo("用法：pcd-sim version\n"));
+            Assert.That(stderr.ToString(), Is.EqualTo(SimProgram.Usage));
         }
     }
 }

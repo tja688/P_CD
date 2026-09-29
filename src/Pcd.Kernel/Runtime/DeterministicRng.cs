@@ -1,3 +1,5 @@
+using System;
+
 namespace Pcd.Kernel
 {
     /// <summary>
@@ -28,6 +30,19 @@ namespace Pcd.Kernel
                 z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
                 return z ^ (z >> 31);
             }
+        }
+
+        /// <summary>
+        /// Uniform enough for small ranges. Uses modulo so every runtime takes the same branch.
+        /// </summary>
+        public int NextInt(int exclusiveMax)
+        {
+            if (exclusiveMax <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(exclusiveMax));
+            }
+
+            return (int)(NextUInt64() % (ulong)exclusiveMax);
         }
     }
 }
