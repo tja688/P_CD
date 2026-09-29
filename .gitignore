@@ -1,37 +1,8 @@
-# OS
+node_modules/
+dist/
+coverage/
 .DS_Store
-Thumbs.db
-Desktop.ini
-
-# Editor / IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# Secrets & env
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-credentials.json
-secrets.*
-
-# Logs & temp
 *.log
-logs/
-tmp/
-temp/
-.cache/
-
-# Dependencies (uncomment as needed)
-# node_modules/
-# __pycache__/
-# *.pyc
-# .venv/
-# venv/
-# target/
-# bin/
-# obj/
+.env*
+!.env.example
+readme/*.mp4
