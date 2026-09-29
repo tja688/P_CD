@@ -14,7 +14,7 @@ Web runtime，仿古 Amber phosphor CRT 显示器终端视觉风格，平面 2D 
 
 ### Issue tracker
 
-Issues live as GitHub issues in `tja688/The-Called` (origin). See `docs/agents/issue-tracker.md`.
+Issues live as GitHub issues in `tja688/P_CD` (origin). See `docs/agents/issue-tracker.md`.
 
 ### Domain docs
 
