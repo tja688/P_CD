@@ -1013,9 +1013,16 @@ export class Terminal {
       statY += 16
     }
     const looked = this.inspectCard()
-    if (looked && statY < 150) {
-      label(looked.name, SIDE_X, statY + 4, 0.7)
-      label(clipText(looked.text || (looked.spell ? '法术' : '无效果'), 12), SIDE_X, statY + 20, 0.34)
+    if (looked) {
+      const name = label(looked.name, SIDE_X, statY + 2, 0.7)
+      const rule = looked.text || (looked.spell ? '法术' : '无效果')
+      const body = label(rule, SIDE_X, name.root.y + name.height + 2, 0.78)
+      const limit = 172
+      const overflow = body.root.y + body.height - limit
+      if (overflow > 0) {
+        name.root.y -= overflow
+        body.root.y -= overflow
+      }
     }
     const toast = this.log[this.log.length - 1]
     if (toast) {
@@ -1362,14 +1369,6 @@ export class Terminal {
       mismatches: this.mismatches.slice(),
     }
   }
-}
-
-function clipText(text: string, max: number): string {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  if (flat.length <= max) {
-    return flat
-  }
-  return `${flat.slice(0, max - 1)}…`
 }
 
 function cellOrigin(cell: number): { x: number; y: number } {
