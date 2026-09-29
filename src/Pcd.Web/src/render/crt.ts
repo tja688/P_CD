@@ -1,19 +1,4 @@
-import { Filter, GlProgram, RenderTexture, UniformGroup, defaultFilterVert } from 'pixi.js'
-
-const persistFrag = `
-in vec2 vTextureCoord;
-out vec4 finalColor;
-uniform sampler2D uTexture;
-uniform sampler2D uOld;
-uniform float uDecay;
-
-void main() {
-  float live = texture(uTexture, vTextureCoord).r;
-  float aged = texture(uOld, vTextureCoord).r * uDecay;
-  float v = max(live, aged);
-  finalColor = vec4(v, v, v, 1.0);
-}
-`
+import { Filter, GlProgram, UniformGroup, defaultFilterVert } from 'pixi.js'
 
 const crtFrag = `
 in vec2 vTextureCoord;
@@ -47,7 +32,7 @@ void main() {
   glow += texture(uTexture, snapped - vec2(1.0 / logical.x, 0.0)).r;
   glow += texture(uTexture, snapped + vec2(0.0, 1.0 / logical.y)).r;
   glow += texture(uTexture, snapped - vec2(0.0, 1.0 / logical.y)).r;
-  float signal = center + glow * 0.07;
+  float signal = center + glow * 0.03;
   signal *= 0.99 + 0.01 * sin(uTime * 18.0);
   float scan = 0.93 + 0.07 * sin(gl_FragCoord.y * 3.14159);
   float grille = 0.96 + 0.04 * step(0.5, fract(gl_FragCoord.x * 0.5));
@@ -66,19 +51,6 @@ void main() {
 }
 `
 
-export function createPersistFilter(previous: RenderTexture): Filter {
-  return new Filter({
-    glProgram: GlProgram.from({ vertex: defaultFilterVert, fragment: persistFrag, name: 'phosphor-persist' }),
-    resources: {
-      persistUniforms: new UniformGroup({
-        uDecay: { value: 0.62, type: 'f32' },
-      }),
-      uOld: previous.source,
-      uOldSampler: previous.source.style,
-    },
-  })
-}
-
 export function createCrtFilter(): Filter {
   return new Filter({
     glProgram: GlProgram.from({ vertex: defaultFilterVert, fragment: crtFrag, name: 'amber-crt' }),
@@ -93,11 +65,6 @@ export function createCrtFilter(): Filter {
       }),
     },
   })
-}
-
-export function setPersistSource(filter: Filter, previous: RenderTexture): void {
-  filter.resources.uOld = previous.source
-  filter.resources.uOldSampler = previous.source.style
 }
 
 export function setCrtTime(filter: Filter, time: number): void {

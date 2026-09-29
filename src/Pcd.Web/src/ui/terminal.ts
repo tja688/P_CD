@@ -8,7 +8,7 @@ import { Director } from '../play/director'
 import { reconcile } from '../play/reconcile'
 import { applyEvent, emptyShown, shownFromView, type Effect, type Shown, type ShownCard } from '../play/shown'
 import { frameTexture } from '../render/bake'
-import { createCrtFilter, createPersistFilter, setCrtTime, setPersistSource } from '../render/crt'
+import { createCrtFilter, setCrtTime } from '../render/crt'
 import { Digits } from '../render/digits'
 import { Glyphs, gray, type Label } from '../render/glyphs'
 import { ButtonFace, CardFace } from './widgets'
@@ -65,8 +65,9 @@ export class Terminal {
   private scene: RenderTexture
   private front: RenderTexture
   private back: RenderTexture
-  private persistSprite: Sprite
-  private persistFilter
+  private plate = new Container()
+  private oldSprite: Sprite
+  private liveSprite: Sprite
   private crt
   private director = new Director()
   private mode: Mode = 'boot'
@@ -128,16 +129,18 @@ export class Terminal {
     renderer: Renderer,
   ) {
     this.kernelMode = kernel.mode
-    this.scene = RenderTexture.create({ width: W, height: H })
-    this.front = RenderTexture.create({ width: W, height: H })
-    this.back = RenderTexture.create({ width: W, height: H })
+    const frame = { width: W, height: H, resolution: 1 }
+    this.scene = RenderTexture.create(frame)
+    this.front = RenderTexture.create(frame)
+    this.back = RenderTexture.create(frame)
     for (const rt of [this.scene, this.front, this.back]) {
       rt.source.scaleMode = 'nearest'
     }
-    this.persistFilter = createPersistFilter(this.front)
     this.crt = createCrtFilter()
-    this.persistSprite = new Sprite(this.scene)
-    this.persistSprite.filters = [this.persistFilter]
+    this.oldSprite = new Sprite(this.front)
+    this.oldSprite.alpha = 0.5
+    this.liveSprite = new Sprite(this.scene)
+    this.plate.addChild(this.oldSprite, this.liveSprite)
     this.screen = new Sprite(this.front)
     this.screen.filters = [this.crt]
     this.screen.texture.source.scaleMode = 'nearest'
@@ -249,9 +252,11 @@ export class Terminal {
     if (this.mode === 'menu') {
       this.pulseMenu()
     }
-    renderer.render({ container: this.world, target: this.scene, clear: true })
-    setPersistSource(this.persistFilter, this.front)
-    renderer.render({ container: this.persistSprite, target: this.back, clear: true })
+    const clearColor = [0, 0, 0, 0]
+    renderer.render({ container: this.world, target: this.scene, clear: true, clearColor })
+    this.oldSprite.texture = this.front
+    this.liveSprite.texture = this.scene
+    renderer.render({ container: this.plate, target: this.back, clear: true, clearColor })
     const swap = this.front
     this.front = this.back
     this.back = swap
