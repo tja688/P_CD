@@ -2,6 +2,22 @@
 
 策划 playtest 预览，以及网页端与 Unity 端共用的规则内核。本仓库目前是工程骨架：同一份 C# 内核可以在 .NET 10、WebAssembly 与 Unity 6.6 里编译。
 
+## 网页预览
+
+琥珀磷光 CRT 表现层在 `src/Pcd.Web`。先发布浏览器里的内核，再开页面：
+
+```bash
+dotnet workload install wasm-tools
+dotnet publish src/Pcd.Wasm/Pcd.Wasm.csproj -c Release
+cd src/Pcd.Web
+npm install
+npm run dev
+```
+
+浏览器打开 `http://127.0.0.1:5173/`。默认先试本机 `ws://127.0.0.1:7420/`（`dotnet run --project src/Pcd.DevHost`），接不上就用刚发布的 WebAssembly。`?kernel=wasm` 固定走 WebAssembly，`?instant=1` 把演出延迟收成 0。
+
+开局只选三套现成牌组（科学、神秘、宗教）和三个怪物（失控机械、活数据库、废燃泰坦）。地图、商店、金币、奖励和牌组编辑不在这一版。
+
 ## 测试
 
 ```bash

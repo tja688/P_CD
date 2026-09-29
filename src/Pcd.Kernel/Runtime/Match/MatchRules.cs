@@ -1021,7 +1021,7 @@ namespace Pcd.Kernel
         private CardInstance Create(string cardId, Side owner)
         {
             CardDefinition def = _catalog.RequireCard(cardId);
-            return new CardInstance
+            var card = new CardInstance
             {
                 InstanceId = _state.NextInstanceId++,
                 CardId = def.Id,
@@ -1030,6 +1030,8 @@ namespace Pcd.Kernel
                 BasePoints = def.IsSpell ? 0 : def.Points,
                 Zone = Zone.None
             };
+            MatchState.ArmCountdown(def, card);
+            return card;
         }
 
         private CardInstance TakeHand(int instanceId)
@@ -1182,6 +1184,7 @@ namespace Pcd.Kernel
                 ModifierCount = card.Modifiers.Count,
                 IsSpell = card.IsSpell,
                 Timer = card.Timer,
+                TimerMax = card.TimerMax,
                 Statuses = StatusIds(card)
             };
         }
