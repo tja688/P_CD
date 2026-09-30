@@ -30,7 +30,7 @@ function robot(g,variant){
  g.line(26,130,46,122,2);g.line(26,140,46,132,1);g.line(118,128,138,136,2);g.line(118,138,138,146,1);g.bolt(31,146,5);g.bolt(132,149,5);
  if(variant===2){for(let i=0;i<3;i++){g.rect(9,34+i*18,15,8,1);g.rect(10,35+i*18,10,2,3);g.line(25,38+i*18,36,48+i*10,2)}g.rect(77,8,3,9,4);g.ring(79,5,4,3,3)}
  if(variant===3){g.poly([[42,15],[48,3],[54,19]],4);g.poly([[30,44],[18,24],[28,22],[41,48]],2);g.line(34,28,39,39,4);for(let i=0;i<4;i++)g.rect(14+i*36,154,8,2,3)}
- g.corners(3,3,154,154,3,8);g.small('OPTICAL RECORD',9,9,2);g.small('A-'+String(variant).padStart(2,'0'),116,145,3);
+ g.corners(3,3,154,154,3,8);
 }
 function hero(g){
  backdrop(g,288,250);
@@ -50,7 +50,7 @@ function hero(g){
  g.line(56,181,56,164,4);g.line(42,168,70,168,2);g.line(56,165,43,153,2);g.line(56,165,69,153,2);
  g.prism(215,195,39,22,9);g.rect(222,201,6,9,3);g.rect(234,201,6,9,4);g.line(237,188,237,168,3);g.rect(234,164,7,4,5);
  g.line(148,218,148,239,3);g.line(144,239,152,239,3);g.line(148,227,141,231,3);g.line(148,227,155,231,3);
- g.corners(4,4,280,239,3,8);g.small('RECEIVING STATION / 09',14,231,3);g.small('49.09 N / 08.61 E',13,16,2);
+ g.corners(4,4,280,239,3,8);
 }
 const motifs=['sampler','mech','crosshair','lure','analyzer','projector','ghoul','statue','totem','summon','believer','acolyte','priest','idol','convert','research','turret','capacitor','learning','overflow','titan','scanner','weapon','mark','hourglass','microscope','recover','grave','orb','devour','aid','possess','shadow','messenger','revive','keeper','altar','sigil','blessing','servant','penitent','judge','choir','knight','scroll','shield','erase','bunker','occupier','apprentice','poet'];
 function motif(g,name,id){
@@ -107,7 +107,7 @@ function cardBack(g,n){
  case 12:g.poly([[26,53],[35,31],[45,39],[54,22],[70,53]],3);for(let i=0;i<4;i++)g.line(31+i*9,54,36+i*6,28+i*4,4);g.rect(30,58,36,4,5);break;
  case 13:g.ring(48,40,22,22,4);g.ring(48,40,10,10,3);for(let i=0;i<8;i++){const a=i*Math.PI/4;g.line(48+Math.cos(a)*11,40+Math.sin(a)*11,48+Math.cos(a)*21,40+Math.sin(a)*21,i%2?3:5)}g.ell(48,40,3,3,5);break;
  }
- g.small('B'+String(n).padStart(2,'0'),16,17,2);g.small('A-09',58,58,2);
+ g.small('B'+String(n).padStart(2,'0'),16,17,2);
 }
 function fitted(asset,id,w,h){w=Math.round(w);h=Math.round(h);if(w===asset.width&&h===asset.height)return asset;const min=w>=64?0:0x28,key=id+'@'+w+'x'+h+':'+min;let frame=scaleCache.get(key);if(frame)return frame;const sw=asset.width,sh=asset.height,src=asset.getContext('2d').getImageData(0,0,sw,sh).data;frame=document.createElement('canvas');frame.width=w;frame.height=h;const g=frame.getContext('2d'),image=g.createImageData(w,h),dst=image.data;for(let y=0;y<h;y++){const y0=Math.floor(y*sh/h),y1=Math.min(sh,Math.max(y0+1,Math.floor((y+1)*sh/h)));for(let x=0;x<w;x++){const x0=Math.floor(x*sw/w),x1=Math.min(sw,Math.max(x0+1,Math.floor((x+1)*sw/w)));let best=0,br=8,bg=8,bb=8;for(let sy=y0;sy<y1;sy++)for(let sx=x0;sx<x1;sx++){const i=(sy*sw+sx)*4,v=src[i];if(v>=best){best=v;br=src[i];bg=src[i+1];bb=src[i+2]}}const o=(y*w+x)*4;if(best<min)dst[o]=dst[o+1]=dst[o+2]=8;else{dst[o]=br;dst[o+1]=bg;dst[o+2]=bb}dst[o+3]=255}}g.putImageData(image,0,0);scaleCache.set(key,frame);return frame}
 export function drawArt(ctx,id,x,y,w,h){if(!id||!ctx)return;let asset=cache.get(id);if(!asset){asset=document.createElement('canvas');const key=String(id),monster=key.startsWith('monster.')||key.startsWith('card.m'),back=key.startsWith('back.');asset.width=id==='hero'?288:monster?160:96;asset.height=id==='hero'?250:monster?160:80;const g=new Engraving(asset.getContext('2d'));try{if(id==='hero')hero(g);else if(monster)robot(g,Number(key.slice(-3)));else if(back)cardBack(g,Number(key.slice(-3)));else {const n=Number(key.slice(-3)),motifName=motifs[n-1];if(!motifName)throw new Error('missing');motif(g,motifName,n)}}catch{g.rect(0,0,asset.width,asset.height,0);g.small('NO ART',8,Math.max(8,asset.height/2-4),4)}cache.set(id,asset)}ctx.imageSmoothingEnabled=false;ctx.drawImage(fitted(asset,id,w,h),Math.round(x),Math.round(y));}
