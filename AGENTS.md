@@ -7,7 +7,7 @@ Web runtime，Retro-futurist Monochrome Phosphor CRT Interface 视觉风格，�
 ## 仓库定位
 
 - 本仓库是策划与 playtest 用的**前置预览版**，同时承载网页端与 Unity 端共用的**规则内核**。Unity 本体不在本仓库，只做 PC（Steam），通过 UPM git 地址按版本标签引用本仓库的共享包。
-- 规则以 `docs/game design` 下的策划文档为准；术语以 `CONTEXT.md` 为准；架构决策见 `docs/adr/`。
+- 规则以 `docs/game design` 下的策划文档为准；术语以 `CONTEXT.md` 为准；架构决策见 `docs/adr/`；表现层设计见 `docs/amber-phosphor-presentation-handoff.md/`。
 - 卡牌数值与效果以内容文件为准，策划文档中的卡表由内容文件生成（ADR-0008）。
 
 ## Repository workflow
