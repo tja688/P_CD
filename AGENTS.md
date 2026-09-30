@@ -2,7 +2,7 @@
 
 一款非对称单机CCG卡牌冒险游戏。
 
-Web runtime，仿古 Amber phosphor CRT 显示器终端视觉风格，平面 2D 视觉构成，8bit像素音效。
+Web runtime，Retro-futurist Monochrome Phosphor CRT Interface 视觉风格，平面 2D 视觉构成，8bit像素音效。
 
 ## 仓库定位
 
@@ -14,8 +14,7 @@ Web runtime，仿古 Amber phosphor CRT 显示器终端视觉风格，平面 2D 
 
 1. **Do not create branches on your own.** Stay on the branch the user is already on unless they explicitly ask you to create or switch branches.
 2. **Do not use git worktrees.** If a skill, script, or workflow expects a worktree, implement the same outcome on the current branch in this clone instead.
-3. 设计文档：C:\Users\jinji\Documents\GitHub\P_CD\docs\game design。
-4. 规则一经用户确认，直接修改策划文档，保持文档与实现一致，避免后续落地时对不上账。
+3. 游戏核心设计文档：C:\Users\jinji\Documents\GitHub\P_CD\docs\game design。
 
 ## 代码约定
 
