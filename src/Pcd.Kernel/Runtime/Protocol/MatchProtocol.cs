@@ -32,6 +32,10 @@ namespace Pcd.Kernel
                     return Record(root);
                 case "replay":
                     return Replay(root);
+                case "catalog":
+                    return Catalog(root);
+                case "export":
+                    return Export(root);
                 default:
                     throw new ArgumentException("未知命令：" + command);
             }
@@ -71,7 +75,7 @@ namespace Pcd.Kernel
 
         private static string Start(JsonValue root)
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = LoadRequested(root);
             JsonValue? deck = root.Find("buildDeck");
             var setup = new MatchSetup
             {
@@ -86,14 +90,14 @@ namespace Pcd.Kernel
 
         private static string Answer(JsonValue root)
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = LoadRequested(root);
             MatchSession session = MatchSession.FromSnapshot(root.Require("snapshot").String(), catalog);
             return WriteAdvance(catalog, session, session.SubmitAndAdvance(root.Require("option").String()));
         }
 
         private static string View(JsonValue root)
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = LoadRequested(root);
             MatchSession session = MatchSession.FromSnapshot(root.Require("snapshot").String(), catalog);
             string audience = ReadString(root, "audience") ?? "public";
             var writer = new JsonWriter();
@@ -118,7 +122,7 @@ namespace Pcd.Kernel
 
         private static string Replay(JsonValue root)
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = LoadRequested(root);
             MatchSession session = MatchSession.PlayReplay(root.Require("replay").String(), catalog);
             MatchView view = session.View("omniscient");
             var writer = new JsonWriter();
@@ -284,6 +288,21 @@ namespace Pcd.Kernel
             writer.Value(view.PlayerDiscardCount);
             writer.Name("monsterDiscardCount");
             writer.Value(view.MonsterDiscardCount);
+            writer.Name("pools");
+            writer.BeginArray();
+            for (int i = 0; i < view.Pools.Length; i++)
+            {
+                writer.BeginObject();
+                writer.Name("owner");
+                writer.Value(view.Pools[i].Owner);
+                writer.Name("id");
+                writer.Value(view.Pools[i].Id);
+                writer.Name("amount");
+                writer.Value(view.Pools[i].Amount);
+                writer.EndObject();
+            }
+
+            writer.EndArray();
             writer.Name("winner");
             writer.Value(view.Winner);
             writer.Name("reason");
@@ -354,6 +373,18 @@ namespace Pcd.Kernel
             writer.Value(card.CardBackId);
             writer.Name("spell");
             writer.Value(card.IsSpell);
+            writer.Name("timer");
+            writer.Value(card.Timer);
+            writer.Name("timerMax");
+            writer.Value(card.TimerMax);
+            writer.Name("statuses");
+            writer.BeginArray();
+            for (int i = 0; i < card.Statuses.Length; i++)
+            {
+                writer.Value(card.Statuses[i]);
+            }
+
+            writer.EndArray();
             writer.EndObject();
         }
 
@@ -364,9 +395,53 @@ namespace Pcd.Kernel
 
         private static PlayoutResult PlayRequested(JsonValue root, ulong seed, int maxDecisions)
         {
+            return PlayCatalog(LoadRequested(root), seed, maxDecisions);
+        }
+
+        private static string Catalog(JsonValue root)
+        {
+            ContentCatalog catalog = LoadRequested(root);
+            var writer = new JsonWriter();
+            CatalogWriter.Write(writer, catalog, ReadString(root, "yaml") != null ? "yaml" : (ReadString(root, "content") ?? "blank"));
+            return writer.ToString();
+        }
+
+        private static string Export(JsonValue root)
+        {
+            ContentCatalog catalog = LoadRequested(root);
+            MatchSession session = MatchSession.FromSnapshot(root.Require("snapshot").String(), catalog);
+            var writer = new JsonWriter();
+            writer.BeginObject();
+            writer.Name("protocol");
+            writer.Value(RuleProtocol.Version);
+            writer.Name("hash");
+            writer.Value(session.EventHash());
+            writer.Name("replay");
+            writer.Value(session.ToReplay());
+            writer.EndObject();
+            return writer.ToString();
+        }
+
+        private static ContentCatalog LoadRequested(JsonValue root)
+        {
+            string? yaml = ReadString(root, "yaml");
+            if (yaml != null)
+            {
+                return ContentCatalog.Parse(yaml);
+            }
+
             string? content = ReadString(root, "content");
-            ContentCatalog catalog = content == "rules" ? ContentCatalog.LoadRules() : ContentCatalog.LoadBlank();
-            return PlayCatalog(catalog, seed, maxDecisions);
+            if (content == null || content.Length == 0 || content == "blank")
+            {
+                return ContentCatalog.LoadBlank();
+            }
+
+            if (content == "rules")
+            {
+                return ContentCatalog.LoadRules();
+            }
+
+            throw new ArgumentException("未知内容：" + content);
         }
 
         private static PlayoutResult PlayCatalog(ContentCatalog catalog, ulong seed, int maxDecisions)

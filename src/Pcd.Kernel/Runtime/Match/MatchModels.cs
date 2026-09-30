@@ -124,6 +124,7 @@ namespace Pcd.Kernel
         public int ModifierCount { get; internal set; }
         public bool IsSpell { get; internal set; }
         public int Timer { get; internal set; }
+        public int TimerMax { get; internal set; }
         public string[] Statuses { get; internal set; } = Array.Empty<string>();
     }
 

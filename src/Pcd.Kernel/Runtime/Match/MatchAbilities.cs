@@ -1291,10 +1291,27 @@ namespace Pcd.Kernel
 
             if (card.TimerMax > 0)
             {
+                int before = card.Timer;
                 card.Timer -= amount;
-                if (card.Timer <= 0)
+                bool fired = card.Timer <= 0;
+                if (fired)
                 {
                     card.Timer = card.TimerMax;
+                }
+
+                Emit(new GameEvent
+                {
+                    Type = "timer-changed",
+                    Card = card.CardId,
+                    Instance = card.InstanceId,
+                    Owner = Names.SideName(card.Owner),
+                    Cell = card.Cell,
+                    Source = "countdown",
+                    Before = before,
+                    After = card.Timer
+                });
+                if (fired)
+                {
                     EnqueueCountdown(card, false, 0);
                 }
             }
