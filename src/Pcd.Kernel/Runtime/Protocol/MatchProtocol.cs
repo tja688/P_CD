@@ -73,11 +73,13 @@ namespace Pcd.Kernel
         {
             ContentCatalog catalog = ContentCatalog.LoadBlank();
             JsonValue? deck = root.Find("buildDeck");
+            JsonValue? backs = root.Find("buildBacks");
             var setup = new MatchSetup
             {
                 Seed = ReadULong(root, "seed", 1),
                 MonsterId = ReadString(root, "monster") ?? catalog.DefaultMonster ?? "",
                 BuildDeck = deck == null || deck.IsNull ? catalog.DefaultDeck : ReadIds(deck, "构建牌组"),
+                BuildBacks = backs == null || backs.IsNull ? null : ReadIds(backs, "卡背"),
                 OpportunitiesPerTurn = ReadInt(root, "opportunities", 1)
             };
             MatchSession session = MatchSession.Start(catalog, setup);

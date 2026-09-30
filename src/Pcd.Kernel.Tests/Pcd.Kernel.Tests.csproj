@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Pcd.Kernel\Pcd.Kernel.csproj" />
+    <ProjectReference Include="..\Pcd.PlayHost\Pcd.PlayHost.csproj" />
     <ProjectReference Include="..\Pcd.Sim\Pcd.Sim.csproj" />
   </ItemGroup>
 

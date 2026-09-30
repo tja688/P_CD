@@ -126,6 +126,12 @@ namespace Pcd.Kernel
                 writer.Value(state.SetupMonsterId);
                 writer.Name("buildDeck");
                 WriteStrings(writer, state.BuildDeck);
+                if (state.BuildBacks.Count == state.BuildDeck.Count)
+                {
+                    writer.Name("buildBacks");
+                    WriteStrings(writer, state.BuildBacks);
+                }
+
                 writer.EndObject();
             }
 
@@ -271,6 +277,15 @@ namespace Pcd.Kernel
                 state.SetupSeed = setup.Require("seed").ULong();
                 state.SetupMonsterId = setup.Require("monster").String();
                 state.BuildDeck = ReadStrings(setup.Require("buildDeck"));
+                JsonValue? backs = setup.Find("buildBacks");
+                if (backs != null && !backs.IsNull)
+                {
+                    state.BuildBacks = ReadStrings(backs);
+                    if (state.BuildBacks.Count != state.BuildDeck.Count)
+                    {
+                        throw new FormatException("卡背数量必须和卡牌数量一致。");
+                    }
+                }
             }
 
             if (state.Waiting && state.NextDecisionId != state.PendingDecisionId + 1)

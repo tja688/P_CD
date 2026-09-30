@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices.JavaScript;
 using System.Runtime.Versioning;
 using Pcd.Kernel;
+using Pcd.PlayHost;
 
 [assembly: SupportedOSPlatform("browser")]
 
@@ -12,5 +13,11 @@ public partial class KernelBridge
     public static string Invoke(string requestJson)
     {
         return KernelEntry.Invoke(requestJson);
+    }
+
+    [JSExport]
+    public static string Host(string requestJson)
+    {
+        return SessionHost.Invoke(requestJson);
     }
 }

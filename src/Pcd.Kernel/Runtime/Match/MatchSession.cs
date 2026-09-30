@@ -115,11 +115,13 @@ namespace Pcd.Kernel
             }
 
             JsonValue? opportunities = root.Find("opportunities");
+            JsonValue? backs = root.Find("buildBacks");
             var setup = new MatchSetup
             {
                 Seed = root.Require("seed").ULong(),
                 MonsterId = root.Require("monster").String(),
                 BuildDeck = ReadBuildDeck(root.Require("buildDeck")),
+                BuildBacks = backs == null || backs.IsNull ? null : ReadBuildDeck(backs),
                 OpportunitiesPerTurn = opportunities == null || opportunities.IsNull ? 1 : opportunities.Int()
             };
             MatchSession session = Start(catalog, setup);
@@ -271,6 +273,18 @@ namespace Pcd.Kernel
             }
 
             writer.EndArray();
+            if (_state.BuildBacks.Count == _state.BuildDeck.Count)
+            {
+                writer.Name("buildBacks");
+                writer.BeginArray();
+                for (int i = 0; i < _state.BuildBacks.Count; i++)
+                {
+                    writer.Value(_state.BuildBacks[i]);
+                }
+
+                writer.EndArray();
+            }
+
             writer.Name("opportunities");
             writer.Value(_state.OpportunitiesPerTurn);
             writer.Name("decisions");

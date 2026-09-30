@@ -6,11 +6,13 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <WasmMainJSPath>main.mjs</WasmMainJSPath>
     <WasmEmitSymbolMap>false</WasmEmitSymbolMap>
+    <InvariantGlobalization>true</InvariantGlobalization>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Pcd.Kernel\Pcd.Kernel.csproj" />
+    <ProjectReference Include="..\Pcd.PlayHost\Pcd.PlayHost.csproj" />
     <WasmExtraFilesToDeploy Include="main.mjs" />
   </ItemGroup>
 </Project>

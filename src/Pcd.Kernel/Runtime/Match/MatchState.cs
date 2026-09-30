@@ -347,6 +347,7 @@ namespace Pcd.Kernel
         public ulong SetupSeed;
         public string SetupMonsterId = "";
         public List<string> BuildDeck = new List<string>();
+        public List<string> BuildBacks = new List<string>();
         public Decision? Pending;
         public bool Resolving;
         public int ResolutionCursor;
@@ -408,6 +409,7 @@ namespace Pcd.Kernel
                 SetupSeed = SetupSeed,
                 SetupMonsterId = SetupMonsterId,
                 BuildDeck = new List<string>(BuildDeck),
+                BuildBacks = new List<string>(BuildBacks),
                 Pending = null,
                 Resolving = Resolving,
                 ResolutionCursor = ResolutionCursor,
@@ -460,6 +462,7 @@ namespace Pcd.Kernel
             SetupSeed = other.SetupSeed;
             SetupMonsterId = other.SetupMonsterId;
             BuildDeck = other.BuildDeck;
+            BuildBacks = other.BuildBacks;
             Pending = null;
             Resolving = other.Resolving;
             ResolutionCursor = other.ResolutionCursor;
@@ -508,10 +511,18 @@ namespace Pcd.Kernel
                 state.Intents.Add(monster.Intents[i]);
             }
 
+            string[]? backs = setup.BuildBacks;
+            if (backs != null && backs.Length != setup.BuildDeck.Length)
+            {
+                throw new ArgumentException("卡背数量必须和卡牌数量一致。");
+            }
+
             for (int i = 0; i < setup.BuildDeck.Length; i++)
             {
+                string back = backs == null ? "" : backs[i] ?? "";
                 state.BuildDeck.Add(setup.BuildDeck[i]);
-                CardInstance card = CreateDefined(catalog, state, setup.BuildDeck[i], Side.Player);
+                state.BuildBacks.Add(back);
+                CardInstance card = CreateDefined(catalog, state, setup.BuildDeck[i], Side.Player, back);
                 card.Zone = Zone.MatchDeck;
                 state.Player.MatchDeck.Add(card);
             }
@@ -666,18 +677,31 @@ namespace Pcd.Kernel
             }
         }
 
-        private static CardInstance CreateDefined(ContentCatalog catalog, MatchState state, string cardId, Side owner)
+        private static CardInstance CreateDefined(ContentCatalog catalog, MatchState state, string cardId, Side owner, string? backId)
         {
             CardDefinition def = catalog.RequireCard(cardId);
+            string? storedBack = null;
+            if (backId != null && backId.Length > 0)
+            {
+                if (catalog.FindBack(backId) == null)
+                {
+                    throw new ArgumentException("内容 " + backId + "：牌组引用的卡背不存在。");
+                }
+
+                storedBack = backId;
+            }
+
             var card = new CardInstance
             {
                 InstanceId = state.NextInstanceId++,
                 CardId = def.Id,
                 Owner = owner,
                 IsSpell = def.IsSpell,
-                BasePoints = def.IsSpell ? 0 : def.Points
+                CardBackId = storedBack,
+                BasePoints = def.IsSpell ? 0 : def.Points + BackPoints(catalog, storedBack)
             };
             ArmCountdown(def, card);
+            ArmCountdown(BackAbilities(catalog, storedBack), card);
             return card;
         }
 

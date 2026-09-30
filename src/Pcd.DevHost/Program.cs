@@ -53,13 +53,25 @@ app.MapPost("/api/start", (StartRequest request) => Execute(() =>
     catalog.RequireMonster(monsterId);
     string[] deck = request.BuildDeck ?? catalog.Decks.FirstOrDefault(d => d.Id == request.DeckId)?.Cards
         ?? throw new ArgumentException("请选择现有牌组。");
-    string[] issues = DeckRules.Validate(catalog, deck, null);
+    string[]? backs = request.BuildBacks;
+    string[] issues = DeckRules.Validate(catalog, deck, backs);
     if (issues.Length > 0) throw new ArgumentException(string.Join(" ", issues));
     var session = MatchSession.Start(catalog, new MatchSetup
     {
-        Seed = request.Seed, MonsterId = monsterId, BuildDeck = deck
+        Seed = request.Seed, MonsterId = monsterId, BuildDeck = deck, BuildBacks = backs
     });
     return Advance(session, session.Advance(), monsterId, request.Seed);
+}));
+app.MapPost("/api/deck/validate", (DeckValidateRequest request) => Execute(() =>
+{
+    string[] cards = request.Cards ?? Array.Empty<string>();
+    string[] issues = DeckRules.Validate(catalog, cards, request.Backs);
+    return new
+    {
+        ok = issues.Length == 0,
+        issues,
+        load = DeckRules.TotalLoad(catalog, cards, request.Backs)
+    };
 }));
 app.MapPost("/api/answer", (AnswerRequest request) => Execute(() =>
 {
@@ -135,5 +147,6 @@ object Advance(MatchSession session, AdvanceResult advance, string monsterId, ul
     };
 }
 
-internal sealed record StartRequest(string? MonsterId, string? DeckId, string[]? BuildDeck, ulong Seed = 1);
+internal sealed record StartRequest(string? MonsterId, string? DeckId, string[]? BuildDeck, string[]? BuildBacks, ulong Seed = 1);
+internal sealed record DeckValidateRequest(string[]? Cards, string[]? Backs);
 internal sealed record AnswerRequest(string Snapshot, string Option);

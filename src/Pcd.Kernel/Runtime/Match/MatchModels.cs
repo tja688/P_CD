@@ -208,6 +208,8 @@ namespace Pcd.Kernel
         public ulong Seed { get; set; } = 1;
         public string MonsterId { get; set; } = "";
         public string[] BuildDeck { get; set; } = Array.Empty<string>();
+        /// <summary>与 BuildDeck 等长。缺省或空串是白板。</summary>
+        public string[]? BuildBacks { get; set; }
         public int OpportunitiesPerTurn { get; set; } = 1;
         public AbilityInjection[] Injections { get; set; } = Array.Empty<AbilityInjection>();
         public string IntentMode { get; set; } = "";
