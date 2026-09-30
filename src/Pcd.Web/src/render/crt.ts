@@ -62,7 +62,7 @@ export function createCrtFilter(): Filter {
     resources: {
       crtUniforms: new UniformGroup({
         uTime: { value: 0, type: 'f32' },
-        uCurve: { value: 0.05, type: 'f32' },
+        uCurve: { value: 0, type: 'f32' },
         uLogical: { value: { x: 640, y: 360 }, type: 'vec2<f32>' },
       }),
     },

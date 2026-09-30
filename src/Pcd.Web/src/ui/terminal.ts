@@ -174,12 +174,14 @@ export class Terminal {
     this.intentFace.root.x = 26
     this.intentFace.root.y = 32
     this.match.addChild(this.intentFace.root)
-    this.resize(renderer.width / renderer.resolution, renderer.height / renderer.resolution)
+    this.resize(renderer.screen.width, renderer.screen.height)
     void renderer.render({ container: this.world, target: this.scene, clear: true })
   }
 
   resize(cssW: number, cssH: number): void {
-    this.scale = Math.max(1, Math.floor(Math.min(cssW / W, cssH / H)))
+    const fit = Math.min(cssW / W, cssH / H)
+    const integer = Math.max(1, Math.floor(fit))
+    this.scale = Math.min(fit, Math.max(integer, fit * 0.94))
     this.screen.scale.set(this.scale)
     this.originX = Math.floor((cssW - W * this.scale) / 2)
     this.originY = Math.floor((cssH - H * this.scale) / 2)

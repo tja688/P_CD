@@ -43,10 +43,18 @@ window.addEventListener('keydown', (event) => {
   }
   terminal.key(event.code)
 })
-window.addEventListener('resize', () => {
-  app.renderer.resize(window.innerWidth, window.innerHeight)
-  terminal.resize(window.innerWidth, window.innerHeight)
-})
+const fitScreen = () => {
+  const cssW = document.documentElement.clientWidth
+  const cssH = document.documentElement.clientHeight
+  if (cssW < 2 || cssH < 2) {
+    return
+  }
+  app.renderer.resize(cssW, cssH)
+  terminal.resize(cssW, cssH)
+}
+fitScreen()
+window.addEventListener('resize', fitScreen)
+new ResizeObserver(fitScreen).observe(document.documentElement)
 
 app.ticker.add(() => {
   terminal.update(app.ticker.deltaMS, app.renderer)
