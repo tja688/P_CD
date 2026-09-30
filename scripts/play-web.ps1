@@ -56,8 +56,53 @@ function Wait-LocalPort {
     throw ('Timed out waiting for http://127.0.0.1:{0}/ ({1}s).' -f $Port, $TimeoutSec)
 }
 
+function Stop-RepoDevHostProcesses {
+    param(
+        [string] $RepoRoot
+    )
+
+    $devHostDir = Join-Path $RepoRoot 'src\Pcd.DevHost'
+    $stopped = 0
+
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            ($_.Name -eq 'Pcd.DevHost.exe') -and
+            $_.ExecutablePath -and
+            ($_.ExecutablePath.StartsWith($devHostDir, [System.StringComparison]::OrdinalIgnoreCase))
+        } |
+        ForEach-Object {
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+            $stopped++
+        }
+
+    Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.CommandLine -and
+            ($_.CommandLine -like ('*' + $Project + '*'))
+        } |
+        ForEach-Object {
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+            $stopped++
+        }
+
+    if ($stopped -gt 0) {
+        Write-Host ('已结束 {0} 个旧的 DevHost 进程，避免内核 DLL 被占用。' -f $stopped)
+        Start-Sleep -Milliseconds 500
+    }
+}
+
 if (-not (Test-Path -LiteralPath $Project)) {
     throw ('DevHost project not found: {0}' -f $Project)
+}
+
+Stop-RepoDevHostProcesses -RepoRoot $RepoRoot
+
+$build = Start-Process -FilePath 'dotnet' `
+    -ArgumentList @('build', $Project, '--nologo', '-v', 'q') `
+    -WorkingDirectory $RepoRoot `
+    -Wait -PassThru -NoNewWindow
+if ($build.ExitCode -ne 0) {
+    throw ('DevHost 编译失败，错误码 {0}。' -f $build.ExitCode)
 }
 
 $port = Get-AvailablePort -Start $PortStart -Count $PortTryCount
@@ -72,7 +117,7 @@ Write-Host ''
 
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = 'dotnet'
-$psi.Arguments = ('run --project "{0}" --urls "{1}"' -f $Project, $url)
+$psi.Arguments = ('run --project "{0}" --no-build --urls "{1}"' -f $Project, $url)
 $psi.WorkingDirectory = $RepoRoot
 $psi.UseShellExecute = $false
 
