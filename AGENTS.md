@@ -15,6 +15,7 @@ Web runtime，Retro-futurist Monochrome Phosphor CRT Interface 视觉风格，�
 1. **Do not create branches on your own.** Stay on the branch the user is already on unless they explicitly ask you to create or switch branches.
 2. **Do not use git worktrees.** If a skill, script, or workflow expects a worktree, implement the same outcome on the current branch in this clone instead.
 3. 游戏核心设计文档：C:\Users\jinji\Documents\GitHub\P_CD\docs\game design。
+4. 网页表现层接力、视觉规范、色板、CRT 管线、输入和验收清单见 `docs/amber-phosphor-presentation-handoff.md`；修改 `src/Pcd.Web` 前 MUST 先读该文档。
 
 ## 代码约定
 

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#100c07">
+  <title>The Call — 琥珀接收终端</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23100c07'/%3E%3Cpath d='M8 9h16M16 9v16M9 17l7-8 7 8' stroke='%23ffb544' fill='none' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="preload" href="fonts/terminal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="equipment" aria-label="The Call 图形接收终端">
+    <header class="nameplate"><span class="maker">◈ &nbsp; PALISADE INSTRUMENTS</span><span>TACTICAL RECEPTION SYSTEM &nbsp; / &nbsp; MODEL A–09</span><span class="serial">SERIAL № 00861</span></header>
+    <div class="cabinet">
+      <span class="screw tl"></span><span class="screw tr"></span>
+      <div class="glass" id="glass">
+        <canvas id="display" width="1280" height="720" tabindex="0" aria-label="游戏屏幕；Tab 选择控件，Enter 确认，数字键选择手牌或格位，Escape 返回，空格加速演出"></canvas>
+        <div class="reflection" aria-hidden="true"></div>
+        <div id="controls" class="accessible-controls" aria-label="屏幕上的操作"></div>
+        <p id="announcement" class="sr-only" aria-live="polite"></p>
+        <noscript>本终端需要 JavaScript。请启用后重新加载。</noscript>
+      </div>
+      <footer class="hardware">
+        <div class="plate"><b>A–09</b><span>PHOSPHOR GRAPHICS TERMINAL<br>640 × 360 &nbsp; · &nbsp; P3 AMBER</span></div>
+        <div class="vent" aria-hidden="true"></div>
+        <div class="hardware-controls"><span class="led" id="led"></span><span>RECEIVE</span><button id="sound" aria-label="切换声音" title="声音开关">AUDIO <span id="sound-value">ON</span></button><button id="fullscreen" aria-label="切换全屏" title="全屏">⛶</button></div>
+      </footer>
+      <span class="screw bl"></span><span class="screw br"></span>
+    </div>
+    <footer class="desk-label"><span>THE CALL &nbsp; / &nbsp; 非对称卡牌博弈</span><span>SELECT → PLACE → TRANSMIT &nbsp; · &nbsp; [SPACE] FAST &nbsp; · &nbsp; [F1] MANUAL</span><span>EST. 1986</span></footer>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
