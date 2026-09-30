@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Pcd.Kernel;
@@ -72,15 +73,44 @@ app.MapPost("/api/answer", (AnswerRequest request) => Execute(() =>
     var setup = root.GetProperty("setup");
     return Advance(session, session.SubmitAndAdvance(request.Option), root.GetProperty("monster").GetString()!, setup.GetProperty("seed").GetUInt64());
 }));
+app.MapPost("/api/trace", async (HttpRequest request) =>
+{
+    try
+    {
+        using var reader = new StreamReader(request.Body);
+        string body = await reader.ReadToEndAsync();
+        if (string.IsNullOrWhiteSpace(body))
+            return Results.BadRequest(new { error = "没有可写入的对局记录。" });
+        using var document = JsonDocument.Parse(body);
+        string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        if (string.IsNullOrEmpty(desktop))
+            return Results.BadRequest(new { error = "找不到桌面目录。" });
+        string name = "the-call-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + ".json";
+        string path = Path.Combine(desktop, name);
+        await using var stream = new FileStream(path, FileMode.CreateNew);
+        await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+        document.WriteTo(writer);
+        await writer.FlushAsync();
+        return Results.Ok(new { file = path });
+    }
+    catch (JsonException)
+    {
+        return Results.BadRequest(new { error = "对局记录不是合法的 JSON。" });
+    }
+    catch (Exception error)
+    {
+        return Results.BadRequest(new { error = error.Message });
+    }
+});
 app.Run();
 
 IResult Execute(Func<object> action)
 {
     try { return Results.Ok(action()); }
-    catch (Exception error) when (error is ArgumentException || error is FormatException
-        || error is ContentException || error is InvalidOperationException || error is OverflowException)
+    catch (Exception error)
     {
-        return Results.BadRequest(new { error = error.Message });
+        app.Logger.LogError(error, "对局请求失败");
+        return Results.BadRequest(new { error = error.GetType().Name + ": " + error.Message });
     }
 }
 
