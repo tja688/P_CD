@@ -4,9 +4,9 @@ namespace Pcd.Kernel
 {
     public static class MatchProtocol
     {
-        public static string PlayoutHash(ulong seed)
+        public static string PlayoutHash(ContentCatalog catalog, ulong seed)
         {
-            return PlaySeed(seed).Hash;
+            return PlayCatalog(catalog, seed, 400).Hash;
         }
 
         public static string Invoke(string requestJson)
@@ -71,7 +71,7 @@ namespace Pcd.Kernel
 
         private static string Start(JsonValue root)
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = CatalogOf(root);
             JsonValue? deck = root.Find("buildDeck");
             JsonValue? backs = root.Find("buildBacks");
             var setup = new MatchSetup
@@ -88,14 +88,14 @@ namespace Pcd.Kernel
 
         private static string Answer(JsonValue root)
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = CatalogOf(root);
             MatchSession session = MatchSession.FromSnapshot(root.Require("snapshot").String(), catalog);
             return WriteAdvance(catalog, session, session.SubmitAndAdvance(root.Require("option").String()));
         }
 
         private static string View(JsonValue root)
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = CatalogOf(root);
             MatchSession session = MatchSession.FromSnapshot(root.Require("snapshot").String(), catalog);
             string audience = ReadString(root, "audience") ?? "public";
             var writer = new JsonWriter();
@@ -120,7 +120,7 @@ namespace Pcd.Kernel
 
         private static string Replay(JsonValue root)
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = CatalogOf(root);
             MatchSession session = MatchSession.PlayReplay(root.Require("replay").String(), catalog);
             MatchView view = session.View("omniscient");
             var writer = new JsonWriter();
@@ -359,16 +359,20 @@ namespace Pcd.Kernel
             writer.EndObject();
         }
 
-        private static PlayoutResult PlaySeed(ulong seed, int maxDecisions = 400)
-        {
-            return PlayCatalog(ContentCatalog.LoadBlank(), seed, maxDecisions);
-        }
-
         private static PlayoutResult PlayRequested(JsonValue root, ulong seed, int maxDecisions)
         {
-            string? content = ReadString(root, "content");
-            ContentCatalog catalog = content == "rules" ? ContentCatalog.LoadRules() : ContentCatalog.LoadBlank();
-            return PlayCatalog(catalog, seed, maxDecisions);
+            return PlayCatalog(CatalogOf(root), seed, maxDecisions);
+        }
+
+        private static ContentCatalog CatalogOf(JsonValue root)
+        {
+            JsonValue? catalog = root.Find("catalog");
+            if (catalog == null || catalog.IsNull)
+            {
+                throw new ContentException("请求缺少 catalog 文本。宿主读入内容目录后传入，内核不读取文件，也不携带嵌入资源。");
+            }
+
+            return ContentCatalog.Parse(catalog.String());
         }
 
         private static PlayoutResult PlayCatalog(ContentCatalog catalog, ulong seed, int maxDecisions)

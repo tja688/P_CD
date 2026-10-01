@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using NUnit.Framework;
+using Pcd.HostCatalog;
 using Pcd.Kernel;
 
 namespace Pcd.Kernel.Tests
@@ -10,7 +11,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Starter_decks_pass_construction_limits()
         {
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
 
             Assert.That(DeckRules.Validate(catalog, Deck(catalog, "deck.science"), null), Is.Empty);
             Assert.That(DeckRules.Validate(catalog, Deck(catalog, "deck.mystery"), null), Is.Empty);
@@ -20,7 +21,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Deck_rules_name_the_offending_card()
         {
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             string[] tooMany = new string[15];
             for (int i = 0; i < 15; i++)
             {
@@ -82,7 +83,7 @@ backs:
         [Test]
         public void Quote_report_lists_the_known_load_and_rarity_gaps()
         {
-            string report = LoadQuote.Report(ContentCatalog.LoadRules());
+            string report = LoadQuote.Report(RepoCatalog.LoadRules());
             int sampleAt = report.IndexOf("## 试报价与卡表不一致", StringComparison.Ordinal);
             int rarityAt = report.IndexOf("## 稀有度不一致", StringComparison.Ordinal);
             int formulaAt = report.IndexOf("## 公式报价与卡表不一致", StringComparison.Ordinal);
@@ -107,7 +108,7 @@ backs:
         [Test]
         public void Sixteen_cards_are_rejected()
         {
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             var cards = new string[16];
             for (int i = 0; i < 16; i++)
             {
@@ -122,7 +123,7 @@ backs:
         [Test]
         public void Generated_text_uses_working_keyword_names()
         {
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
 
             Assert.That(catalog.TextOf("card.c001"), Is.EqualTo("入场：选择一张敌方卡牌，添加解析标记。"));
             Assert.That(catalog.TextOf("card.c002"), Is.EqualTo(""));
@@ -178,7 +179,7 @@ monster:
         [Test]
         public void Generated_tables_match_the_design_docs()
         {
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             string root = RepoRoot();
             string player = File.ReadAllText(Path.Combine(root, "docs", "game design", "06-玩家卡牌与数值锚点.md"));
             string economy = File.ReadAllText(Path.Combine(root, "docs", "game design", "04-构筑与经济.md"));

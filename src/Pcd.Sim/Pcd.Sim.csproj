@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Pcd.HostCatalog\Pcd.HostCatalog.csproj" />
     <ProjectReference Include="..\Pcd.Kernel\Pcd.Kernel.csproj" />
   </ItemGroup>
 </Project>

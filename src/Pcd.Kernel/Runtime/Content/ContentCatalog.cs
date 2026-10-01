@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -394,6 +393,7 @@ namespace Pcd.Kernel
         public bool MayAsk { get; }
         public string Hash { get; }
 
+        // Hosts supply the YAML text. This method only parses it.
         public static ContentCatalog Parse(string yaml)
         {
             YamlNode root = YamlNode.Parse(yaml);
@@ -472,30 +472,6 @@ namespace Pcd.Kernel
                 ReadBacks(root.Get("backs")).ToArray(),
                 deck,
                 defaultMonster);
-        }
-
-        public static ContentCatalog LoadBlank()
-        {
-            using Stream? stream = typeof(ContentCatalog).Assembly.GetManifestResourceStream("Pcd.Kernel.BlankCatalog.yaml");
-            if (stream == null)
-            {
-                throw new ContentException("找不到白板内容。");
-            }
-
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            return Parse(reader.ReadToEnd());
-        }
-
-        public static ContentCatalog LoadRules()
-        {
-            using Stream? stream = typeof(ContentCatalog).Assembly.GetManifestResourceStream("Pcd.Kernel.RulesCatalog.yaml");
-            if (stream == null)
-            {
-                throw new ContentException("找不到规则内容。");
-            }
-
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            return Parse(reader.ReadToEnd());
         }
 
         public CardDefinition RequireCard(string id)

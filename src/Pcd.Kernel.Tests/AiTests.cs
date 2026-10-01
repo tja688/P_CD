@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using NUnit.Framework;
+using Pcd.HostCatalog;
 using Pcd.Kernel;
 using Pcd.Sim;
 
@@ -133,7 +134,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Monster_personality_weights_come_from_content()
         {
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             Personality database = catalog.RequireMonster("monster.002").Personality;
             Personality titan = catalog.RequireMonster("monster.003").Personality;
 

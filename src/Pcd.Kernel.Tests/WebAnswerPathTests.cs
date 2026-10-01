@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using NUnit.Framework;
+using Pcd.HostCatalog;
 using Pcd.Kernel;
 
 namespace Pcd.Kernel.Tests
@@ -10,7 +11,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Seeded_web_matches_survive_snapshot_answers()
         {
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             var failure = "";
             for (int monster = 0; monster < catalog.Monsters.Length; monster++)
             {

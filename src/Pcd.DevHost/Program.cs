@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Pcd.HostCatalog;
 using Pcd.Kernel;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,7 +23,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
 });
 var app = builder.Build();
-var catalog = ContentCatalog.LoadRules();
+var catalog = RepoCatalog.LoadRules();
 var webRoot = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "Pcd.Web"));
 var files = new PhysicalFileProvider(webRoot);
 app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = files });

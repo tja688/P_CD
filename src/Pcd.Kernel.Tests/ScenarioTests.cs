@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
+using Pcd.HostCatalog;
 using Pcd.Kernel;
 
 namespace Pcd.Kernel.Tests
@@ -47,7 +48,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Every_collectible_card_has_a_content_scenario()
         {
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             string all = "";
             foreach (string file in Directory.GetFiles(Path.Combine(RepoRoot(), "scenarios", "cards"), "*.yaml"))
             {

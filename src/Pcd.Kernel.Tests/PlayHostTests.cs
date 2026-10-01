@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using NUnit.Framework;
 using Pcd.PlayHost;
@@ -50,6 +51,15 @@ namespace Pcd.Kernel.Tests
             using JsonDocument doc = JsonDocument.Parse(SessionHost.Invoke("{\"op\":\"validate\",\"cards\":[\"card.missing\"],\"backs\":[\"\"]}"));
             Assert.That(doc.RootElement.GetProperty("ok").GetBoolean(), Is.True);
             Assert.That(doc.RootElement.GetProperty("data").GetProperty("ok").GetBoolean(), Is.False);
+        }
+
+        [Test]
+        public void Web_host_embeds_the_rules_catalog_outside_the_kernel()
+        {
+            string[] names = typeof(SessionHost).Assembly.GetManifestResourceNames();
+
+            Assert.That(names, Does.Contain("Pcd.PlayHost.RulesCatalog.yaml"));
+            Assert.That(names.Any(name => name.StartsWith("Pcd.Kernel.")), Is.False);
         }
 
         private static JsonDocument Open(string json)

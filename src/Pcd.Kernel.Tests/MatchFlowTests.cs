@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using NUnit.Framework;
+using Pcd.HostCatalog;
 using Pcd.Kernel;
 
 namespace Pcd.Kernel.Tests
@@ -11,7 +13,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Snapshot_roundtrip_continues_with_the_same_events()
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
             MatchSession original = Start(catalog, 3);
             AdvanceResult pending = original.Advance();
             string snapshot = original.ToSnapshot();
@@ -28,7 +30,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Snapshot_rejects_a_different_kernel_version()
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
             MatchSession session = Start(catalog, 1);
             session.Advance();
             string snapshot = session.ToSnapshot().Replace("\"kernel\":\"" + KernelVersion.Text + "\"", "\"kernel\":\"9.9.9\"", StringComparison.Ordinal);
@@ -42,7 +44,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Replay_reproduces_the_event_hash()
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
             PlayoutResult played = RandomPlayout.Play(catalog, Setup(catalog, 11), 400, null);
             MatchSession replayed = MatchSession.PlayReplay(played.ReplayJson, catalog);
 
@@ -53,7 +55,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Replay_rejects_a_different_content_hash()
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
             PlayoutResult played = RandomPlayout.Play(catalog, Setup(catalog, 2), 50, null);
             string replay = played.ReplayJson.Replace(catalog.Hash, new string('a', catalog.Hash.Length), StringComparison.Ordinal);
 
@@ -65,7 +67,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Copy_does_not_share_later_answers()
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
             MatchSession original = Start(catalog, 5);
             AdvanceResult pending = original.Advance();
             int hand = original.View("player").HandCount;
@@ -81,7 +83,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Public_view_hides_the_hand_but_shows_the_board()
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
             MatchSession session = Start(catalog, 1);
             session.Advance();
             MatchView player = session.View("player");
@@ -124,15 +126,16 @@ namespace Pcd.Kernel.Tests
         {
             // Seed 7 on the blank catalog: monster wins by full board in round 6.
             const string expected = "edad264c50a4f94f6d3050dbc70ac0d81dfb167999b4a6e3bf8d3f9549fd9fcc";
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
 
-            Assert.That(MatchProtocol.PlayoutHash(7), Is.EqualTo(expected));
-            Assert.That(MatchProtocol.PlayoutHash(7), Is.EqualTo(expected));
+            Assert.That(MatchProtocol.PlayoutHash(catalog, 7), Is.EqualTo(expected));
+            Assert.That(MatchProtocol.PlayoutHash(catalog, 7), Is.EqualTo(expected));
         }
 
         [Test]
         public void Replay_keeps_opportunities_per_turn()
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
             var setup = new MatchSetup
             {
                 Seed = 9,
@@ -151,18 +154,19 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Protocol_replays_the_same_recording()
         {
-            string recorded = KernelEntry.Invoke("{\"command\":\"record\",\"seed\":7}");
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
+            string recorded = KernelEntry.Invoke(WithBlank("{\"command\":\"record\",\"seed\":7}"));
             using JsonDocument record = JsonDocument.Parse(recorded);
             string replay = record.RootElement.GetProperty("replay").GetString()!;
             string hash = record.RootElement.GetProperty("hash").GetString()!;
-            string request = JsonSerializer.Serialize(new Dictionary<string, string>
+            string request = WithBlank(JsonSerializer.Serialize(new Dictionary<string, string>
             {
                 ["command"] = "replay",
                 ["replay"] = replay
-            });
+            }));
             using JsonDocument replayed = JsonDocument.Parse(KernelEntry.Invoke(request));
 
-            Assert.That(hash, Is.EqualTo(MatchProtocol.PlayoutHash(7)));
+            Assert.That(hash, Is.EqualTo(MatchProtocol.PlayoutHash(catalog, 7)));
             Assert.That(replayed.RootElement.GetProperty("hash").GetString(), Is.EqualTo(hash));
             Assert.That(replayed.RootElement.GetProperty("winner").GetString(), Is.Not.EqualTo("unfinished"));
         }
@@ -170,27 +174,27 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Protocol_answer_uses_the_snapshot()
         {
-            using JsonDocument start = JsonDocument.Parse(KernelEntry.Invoke("{\"command\":\"start\",\"seed\":4}"));
+            using JsonDocument start = JsonDocument.Parse(KernelEntry.Invoke(WithBlank("{\"command\":\"start\",\"seed\":4}")));
             JsonElement pending = start.RootElement.GetProperty("pending");
             string snapshot = start.RootElement.GetProperty("snapshot").GetString()!;
             string option = pending.GetProperty("options")[0].GetProperty("id").GetString()!;
             Assert.That(pending.GetProperty("actor").GetString(), Is.EqualTo("player"));
 
-            string request = JsonSerializer.Serialize(new Dictionary<string, string>
+            string request = WithBlank(JsonSerializer.Serialize(new Dictionary<string, string>
             {
                 ["command"] = "answer",
                 ["snapshot"] = snapshot,
                 ["option"] = option
-            });
+            }));
             using JsonDocument answered = JsonDocument.Parse(KernelEntry.Invoke(request));
             Assert.That(answered.RootElement.GetProperty("events").GetArrayLength(), Is.GreaterThan(0));
 
-            string viewRequest = JsonSerializer.Serialize(new Dictionary<string, string>
+            string viewRequest = WithBlank(JsonSerializer.Serialize(new Dictionary<string, string>
             {
                 ["command"] = "view",
                 ["snapshot"] = snapshot,
                 ["audience"] = "public"
-            });
+            }));
             using JsonDocument view = JsonDocument.Parse(KernelEntry.Invoke(viewRequest));
             Assert.That(view.RootElement.GetProperty("hand").GetArrayLength(), Is.EqualTo(0));
             Assert.That(view.RootElement.GetProperty("handCount").GetInt32(), Is.GreaterThan(0));
@@ -203,6 +207,20 @@ namespace Pcd.Kernel.Tests
             const string expected = "{\"version\":\"0.1.0\",\"values\":[13679457532755275413]}";
 
             Assert.That(KernelEntry.Invoke(request), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void Protocol_rejects_a_request_without_catalog_text()
+        {
+            var error = Assert.Throws<ContentException>(() => KernelEntry.Invoke("{\"command\":\"playout\",\"seed\":7}"));
+            Assert.That(error!.Message, Does.Contain("catalog"));
+        }
+
+        private static string WithBlank(string json)
+        {
+            JsonNode node = JsonNode.Parse(json)!;
+            node["catalog"] = RepoCatalog.Read("content/blank/catalog.yaml");
+            return node.ToJsonString();
         }
 
         private static MatchSession Start(ContentCatalog catalog, ulong seed)

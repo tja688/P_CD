@@ -9,4 +9,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Pcd.Kernel\Pcd.Kernel.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\content\rules\catalog.yaml">
+      <LogicalName>Pcd.PlayHost.RulesCatalog.yaml</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

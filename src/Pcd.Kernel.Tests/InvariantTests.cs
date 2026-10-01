@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using NUnit.Framework;
+using Pcd.HostCatalog;
 using Pcd.Kernel;
 
 namespace Pcd.Kernel.Tests
@@ -11,7 +12,7 @@ namespace Pcd.Kernel.Tests
         {
             const int games = 10000;
             const int maxDecisions = 300;
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
             int unfinished = 0;
             for (int i = 0; i < games; i++)
             {
@@ -48,7 +49,7 @@ namespace Pcd.Kernel.Tests
         {
             const int games = 1000;
             const int maxDecisions = 300;
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             int unfinished = 0;
             for (int i = 0; i < games; i++)
             {

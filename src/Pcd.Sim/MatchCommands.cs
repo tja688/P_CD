@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Pcd.HostCatalog;
 using Pcd.Kernel;
 
 namespace Pcd.Sim
@@ -16,7 +17,7 @@ namespace Pcd.Sim
                 return 1;
             }
 
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
             MatchSetup setup = DefaultSetup(catalog, options.Seed);
             stdout.Write("# 白板对局\n\n");
             stdout.Write("种子 ");
@@ -69,7 +70,7 @@ namespace Pcd.Sim
                 return BatchMatrix(options, stdout);
             }
 
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
             var row = new MatchupReport
             {
                 DeckId = "default",
@@ -180,7 +181,7 @@ namespace Pcd.Sim
                 return 1;
             }
 
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             if (args[1] == "record")
             {
                 stdout.Write(BehaviorArchive.Record(catalog, dir!, seed, max));
@@ -208,7 +209,7 @@ namespace Pcd.Sim
             }
 
             string json = File.ReadAllText(options.File!);
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
             MatchSession session = MatchSession.PlayReplay(json, catalog, wantSnapshot ? options.SnapshotAt : -1);
             stdout.Write("# 录像\n\n");
             WriteEvents(stdout, catalog, session.Events);
@@ -323,7 +324,7 @@ namespace Pcd.Sim
 
         private static int BatchMatrix(SimOptions options, TextWriter stdout)
         {
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             var rows = new System.Collections.Generic.List<MatchupReport>();
             int index = 0;
             for (int d = 0; d < catalog.Decks.Length; d++)
@@ -644,7 +645,7 @@ namespace Pcd.Sim
                 return ExplainFile(args[2], stdout, stderr);
             }
 
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             if (args.Length > 2)
             {
                 stderr.Write("explain 只接受一个卡牌标识。\n");
@@ -680,7 +681,7 @@ namespace Pcd.Sim
         {
             try
             {
-                ContentCatalog catalog = ContentCatalog.LoadRules();
+                ContentCatalog catalog = RepoCatalog.LoadRules();
                 stdout.Write("<!-- generated:science -->\n");
                 stdout.Write(CardTables.School(catalog, "science"));
                 stdout.Write("<!-- /generated:science -->\n");
@@ -710,7 +711,7 @@ namespace Pcd.Sim
         {
             try
             {
-                stdout.Write(LoadQuote.Report(ContentCatalog.LoadRules()));
+                stdout.Write(LoadQuote.Report(RepoCatalog.LoadRules()));
                 return 0;
             }
             catch (ContentException ex)

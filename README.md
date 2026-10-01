@@ -46,7 +46,7 @@ dotnet workload install wasm-tools
 node tools/compare-runtimes.mjs
 ```
 
-脚本会分别在 .NET 与 Node 里的 WebAssembly 上调用内核，并要求两边的标准输出逐字节相同。默认比较随机数探针、白板对局、规则内容对局与录像重放哈希。也可以把一条请求作为参数传入。推送时 GitHub Actions 会先跑 `dotnet test`，再跑这个脚本。
+脚本会分别在 .NET 与 Node 里的 WebAssembly 上调用内核，并要求两边的标准输出逐字节相同。默认比较随机数探针、白板对局、规则内容对局与录像重放哈希。对局请求带 `catalogFile`（相对仓库根的内容文件路径），两个宿主各自读文件后把文本放进 `catalog`。也可以把一条请求作为参数传入。推送时 GitHub Actions 会先跑 `dotnet test`，再跑这个脚本。
 
 请求是一段 JSON，键的顺序固定为 `seed`、`count`。`seed` 是十进制无符号整数，`count` 取 1 到 16。响应没有空白：
 
@@ -69,6 +69,15 @@ https://github.com/tja688/P_CD.git?path=/src/Pcd.Kernel#<标签>
 包目录是 `src/Pcd.Kernel`。`package.json` 的 `version` 与代码里的 `KernelVersion.Text` 同为 `0.1.0`。
 
 内核语言锁定在 C# 9 / .NET Standard 2.1，见 `src/Pcd.Kernel/Pcd.Kernel.csproj`。`Runtime/Pcd.Kernel.asmdef` 里 `noEngineReferences` 为 `true`，Unity 编译该程序集时不会引用引擎。
+
+Unity 的 asmdef 编译不会执行 MSBuild 的 `EmbeddedResource`。内容目录不要嵌进 `Pcd.Kernel`。Unity 侧自己读出 YAML 文本（TextAsset、Addressables 或其他资源），再交给内核：
+
+```csharp
+ContentCatalog catalog = ContentCatalog.Parse(yamlText);
+MatchSession session = MatchSession.Start(catalog, setup);
+```
+
+网页宿主与模拟命令行从仓库里的 `content/rules/catalog.yaml` 和 `content/blank/catalog.yaml` 读文本。浏览器里的 `SessionHost` 没有仓库目录，所以规则目录嵌在 `Pcd.PlayHost`，不在内核里。
 
 核对方式：
 

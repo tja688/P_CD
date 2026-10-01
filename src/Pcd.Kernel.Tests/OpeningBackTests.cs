@@ -1,5 +1,6 @@
 using System;
 using NUnit.Framework;
+using Pcd.HostCatalog;
 using Pcd.Kernel;
 
 namespace Pcd.Kernel.Tests
@@ -9,7 +10,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Opening_back_changes_printed_points_and_survives_snapshot_and_replay()
         {
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             string[] deck = Deck(catalog, "deck.science");
             var backs = new string[deck.Length];
             int target = -1;
@@ -64,7 +65,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Missing_backs_stay_blank_and_a_short_list_is_refused()
         {
-            ContentCatalog catalog = ContentCatalog.LoadRules();
+            ContentCatalog catalog = RepoCatalog.LoadRules();
             string[] deck = Deck(catalog, "deck.science");
             MatchSession plain = MatchSession.Start(catalog, new MatchSetup
             {

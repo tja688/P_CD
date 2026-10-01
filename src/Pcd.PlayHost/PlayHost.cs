@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -9,7 +11,22 @@ namespace Pcd.PlayHost
 {
     public static class SessionHost
     {
-        private static readonly ContentCatalog Catalog = ContentCatalog.LoadRules();
+        // Browser builds have no repo checkout. This web host embeds the rules
+        // catalog. The kernel assembly must not: Unity asmdef ignores MSBuild
+        // EmbeddedResource items.
+        private static readonly ContentCatalog Catalog = LoadEmbeddedRules();
+
+        private static ContentCatalog LoadEmbeddedRules()
+        {
+            using Stream? stream = typeof(SessionHost).Assembly.GetManifestResourceStream("Pcd.PlayHost.RulesCatalog.yaml");
+            if (stream == null)
+            {
+                throw new ContentException("浏览器宿主没有规则内容。把 content/rules/catalog.yaml 作为本程序集的嵌入资源，不要放进内核。");
+            }
+
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            return ContentCatalog.Parse(reader.ReadToEnd());
+        }
 
         public static string Invoke(string requestJson)
         {

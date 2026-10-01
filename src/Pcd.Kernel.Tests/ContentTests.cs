@@ -1,5 +1,6 @@
 using System;
 using NUnit.Framework;
+using Pcd.HostCatalog;
 using Pcd.Kernel;
 
 namespace Pcd.Kernel.Tests
@@ -9,7 +10,7 @@ namespace Pcd.Kernel.Tests
         [Test]
         public void Blank_catalog_exposes_working_names()
         {
-            ContentCatalog catalog = ContentCatalog.LoadBlank();
+            ContentCatalog catalog = RepoCatalog.LoadBlank();
 
             Assert.That(catalog.DefaultMonster, Is.EqualTo("monster.901"));
             Assert.That(catalog.DefaultDeck.Length, Is.EqualTo(15));

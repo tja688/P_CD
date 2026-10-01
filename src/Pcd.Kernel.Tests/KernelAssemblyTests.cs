@@ -32,6 +32,15 @@ namespace Pcd.Kernel.Tests
             Assert.That(csproj, Does.Contain("<LangVersion>9.0</LangVersion>"));
             Assert.That(packageJson, Does.Contain("\"version\": \"" + KernelVersion.Text + "\""));
             Assert.That(asmdef, Does.Contain("\"noEngineReferences\": true"));
+            Assert.That(csproj, Does.Not.Contain("EmbeddedResource"));
+        }
+
+        [Test]
+        public void Kernel_assembly_does_not_embed_catalog_yaml()
+        {
+            string[] names = typeof(ContentCatalog).Assembly.GetManifestResourceNames();
+
+            Assert.That(names, Is.Empty);
         }
 
         private static string RepoRoot()

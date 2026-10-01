@@ -6,7 +6,12 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const requests = process.argv[2]
   ? [process.argv[2]]
-  : ['{"seed":1234567,"count":5}', '{"seed":42,"count":1}', '{"command":"playout","seed":7}', '{"command":"playout","seed":7,"content":"rules","max":80}']
+  : [
+      '{"seed":1234567,"count":5}',
+      '{"seed":42,"count":1}',
+      '{"command":"playout","seed":7,"catalogFile":"content/blank/catalog.yaml"}',
+      '{"command":"playout","seed":7,"catalogFile":"content/rules/catalog.yaml","max":80}',
+    ]
 
 function run(command, args) {
   const result = spawnSync(command, args, {
@@ -67,8 +72,12 @@ for (const request of requests) {
   process.stdout.write(compare(request))
 }
 
-const recorded = JSON.parse(compare('{"command":"record","seed":7}'))
-const replayRequest = JSON.stringify({ command: 'replay', replay: recorded.replay })
+const recorded = JSON.parse(compare('{"command":"record","seed":7,"catalogFile":"content/blank/catalog.yaml"}'))
+const replayRequest = JSON.stringify({
+  command: 'replay',
+  replay: recorded.replay,
+  catalogFile: 'content/blank/catalog.yaml',
+})
 const replayed = JSON.parse(compare(replayRequest))
 if (replayed.hash !== recorded.hash) {
   process.stderr.write('Replay hash does not match the recording.\n')

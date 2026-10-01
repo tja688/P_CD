@@ -204,7 +204,7 @@ POST /api/answer
 POST /api/trace
 ```
 
-`/api/catalog` 由 `ContentCatalog.LoadRules()` 产生，包含全部真实卡牌、怪物、牌组、状态和资源。`/api/start` 创建 `MatchSession`；`/api/answer` 从 snapshot 恢复并提交一个合法选项。怪物待决策由已有 `MonsterAi` 自动推进到玩家待决策或结算。`/api/trace` 只把浏览器交来的对局记录原样写到桌面，不参与规则。
+`/api/catalog` 由宿主读入 `content/rules/catalog.yaml` 后调用 `ContentCatalog.Parse` 产生，包含全部真实卡牌、怪物、牌组、状态和资源。`/api/start` 创建 `MatchSession`；`/api/answer` 从 snapshot 恢复并提交一个合法选项。怪物待决策由已有 `MonsterAi` 自动推进到玩家待决策或结算。`/api/trace` 只把浏览器交来的对局记录原样写到桌面，不参与规则。
 
 前端可读取：
 
